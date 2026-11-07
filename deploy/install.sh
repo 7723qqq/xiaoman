@@ -278,8 +278,9 @@ if [[ "$CLAIM_OFF" != true ]]; then
     [[ -n "$v" ]] && claim_lines+="XIAOMAN_CLAIM_$name=$v"$'\n'
   done
 fi
-if [[ -n "$claim_lines" ]] && ! grep -q '^XIAOMAN_CLAIM_TOPIC_ID=' <<<"$claim_lines"; then say "自助领取缺领取帖（--claim-topic），保持关闭"; claim_lines=""; fi
-if [[ -n "$claim_lines" ]] && ! grep -q '^XIAOMAN_CLAIM_EXPIRES=' <<<"$claim_lines"; then say "自助领取缺过期时间（--claim-expires），保持关闭"; claim_lines=""; fi
+# 没有领取帖时服务不开启领取；份数、额度等先保留，等补上 --claim-topic 时生效。
+if [[ -n "$claim_lines" ]] && ! grep -q '^XIAOMAN_CLAIM_TOPIC_ID=' <<<"$claim_lines"; then say "自助领取缺领取帖（--claim-topic），保持关闭（已保留份数和额度设置）"; fi
+if grep -q '^XIAOMAN_CLAIM_TOPIC_ID=' <<<"$claim_lines" && ! grep -q '^XIAOMAN_CLAIM_EXPIRES=' <<<"$claim_lines"; then say "自助领取缺过期时间（--claim-expires），保持关闭"; claim_lines=""; fi
 if [[ -n "$claim_lines" && "$class_state" != on ]]; then say "自助领取需要先开启课堂令牌，设置已保留但暂不生效"; fi
 generated=false
 if [[ -z "$code" ]]; then code="$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 12)"; generated=true; fi
