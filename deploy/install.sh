@@ -173,6 +173,8 @@ release="$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$work/bundle"
 tar -C "$(dirname "$dist")" -czf "$work/bundle/web-server.tgz" "$(basename "$dist")"
 cp "$here/deploy/xiaoman-web.service" "$here/deploy/Caddyfile.template" "$work/bundle/"
+# 聊天工作流（channel: chat 的技能）：随版本上传，网页版启动时从 current/skills/examples 加载。
+[[ -d "$here/skills/examples" ]] && tar -C "$here" -cf "$work/bundle/skills.tar" skills/examples
 {
   printf 'RELEASE=%q\nSITE=%q\nPORT=%q\nTZ_NAME=%q\nWITH_NODE=%q\nINSTALL_DEPS=%q\n' \
     "$release" "$site" "$port" "$timezone" "$with_node" "$install_deps"
@@ -241,6 +243,7 @@ install -d -m 0750 -g xiaoman /etc/xiaoman-web
 dest="/opt/xiaoman-web/releases/$RELEASE"
 mkdir -p "$dest"
 tar -xzf web-server.tgz -C "$dest" --strip-components=1
+[[ -f skills.tar ]] && tar -xf skills.tar -C "$dest"
 chmod -R a+rX "$dest"
 
 # 访问码：新给的优先；否则沿用旧的；都没有就随机生成。
@@ -291,6 +294,9 @@ TZ=$TZ_NAME
 XIAOMAN_STDIO_MCP=$stdio_mode
 JAVA_OPTS=-Xmx384m -XX:+UseSerialGC
 ENV
+if [[ -d "$dest/skills/examples" ]]; then
+  { echo "# 聊天工作流：随版本发布的 skills/examples，只加载 channel: chat 的技能"; echo "XIAOMAN_WEB_SKILLS=/opt/xiaoman-web/current/skills/examples"; } >> "$env_file.new"
+fi
 if [[ "$class_state" == on ]]; then
   {
     echo "# 课堂令牌：讲师 Key 在 $key_file；令牌用 sudo xiaoman-tokens 管理"

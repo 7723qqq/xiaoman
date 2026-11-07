@@ -70,8 +70,8 @@ XIAOMAN_WEB_SKILLS=/opt/xiaoman-web/skills bin/web-server
 bin/web-server --skills /opt/xiaoman-web/skills
 ~~~
 
-部署后可在 /etc/xiaoman-web/env 中增加 XIAOMAN_WEB_SKILLS=/opt/xiaoman-web/skills，
-让服务用户能读取该目录，再重启 xiaoman-web 服务。修改技能也需要重启。
+install.sh 会把仓库里的 skills/examples 随版本一起上传，并在 /etc/xiaoman-web/env 写入
+XIAOMAN_WEB_SKILLS=/opt/xiaoman-web/current/skills/examples。改了技能重新运行 install.sh 即可。
 启动日志会打印聊天工作流数量和解析问题数，有问题的技能不会加载。
 
 未配置时服务使用空技能；学员的 --local 模式会自动尝试工作目录或 jar 附近的 skills/examples、skills。
