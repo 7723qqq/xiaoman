@@ -41,7 +41,10 @@ class DirectorySkillRepositoryTest {
         val result = DirectorySkillRepository(listOf(examples)).reload()
         assertEquals(emptyList(), result.problems)
         assertEquals(
-            listOf("meituan-takeout-order", "open-settings-wifi", "set-alarm", "takeout-reorder", "taxi-home", "train-ticket-order"),
+            listOf(
+                "ai-news-brief", "daily-quiz", "health-alarms", "meituan-takeout-order", "open-settings-wifi", "set-alarm",
+                "takeout-reorder", "taobao-compare", "taxi-home", "today-plan", "train-ticket-order",
+            ),
             result.skills.map { it.name },
         )
         val taxi = result.skills.single { it.name == "taxi-home" }
