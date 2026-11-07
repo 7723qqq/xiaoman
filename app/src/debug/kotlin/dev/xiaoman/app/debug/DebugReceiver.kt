@@ -33,6 +33,10 @@ class DebugReceiver : BroadcastReceiver() {
                 Log.i(TAG, "debug: stop")
                 graph.session.stop()
             }
+            is DebugCommand.Say -> {
+                Log.i(TAG, "debug: say")
+                android.os.Handler(android.os.Looper.getMainLooper()).post { Log.i(TAG, "debug: say -> ${graph.session.submit(command.text)}") }
+            }
             DebugCommand.ReloadSkills -> {
                 val pending = goAsync()
                 graph.scope.launch {

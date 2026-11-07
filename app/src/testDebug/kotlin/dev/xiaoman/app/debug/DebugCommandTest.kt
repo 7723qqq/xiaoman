@@ -16,6 +16,11 @@ class DebugCommandTest {
         )
     }
 
+    @Test fun `say carries trimmed text and needs some`() {
+        assertEquals(DebugCommand.Say("帮我排一下今天"), parse("dev.xiaoman.debug.SAY", "text" to " 帮我排一下今天 "))
+        assertNull(parse("dev.xiaoman.debug.SAY", "text" to "  "))
+    }
+
     @Test fun `run id and skill are optional`() {
         assertEquals(DebugCommand.Run("打开设置", null, "generated"), parse("dev.xiaoman.debug.RUN", "goal" to "打开设置", "skill" to " "))
     }

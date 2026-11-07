@@ -13,10 +13,15 @@ sealed class DebugCommand {
 
     data object ReloadSkills : DebugCommand()
 
+    /** Types [text] into the chat as if the user sent it (recording demos without the soft keyboard). */
+    data class Say(val text: String) : DebugCommand()
+
     companion object {
         const val ACTION_RUN = "dev.xiaoman.debug.RUN"
         const val ACTION_STOP = "dev.xiaoman.debug.STOP"
         const val ACTION_RELOAD_SKILLS = "dev.xiaoman.debug.RELOAD_SKILLS"
+        const val ACTION_SAY = "dev.xiaoman.debug.SAY"
+        const val EXTRA_TEXT = "text"
         const val EXTRA_GOAL = "goal"
         const val EXTRA_SKILL = "skill"
         const val EXTRA_RUN_ID = "run_id"
@@ -30,6 +35,7 @@ sealed class DebugCommand {
             ACTION_RUN -> parseRun(extra, newRunId)
             ACTION_STOP -> Stop
             ACTION_RELOAD_SKILLS -> ReloadSkills
+            ACTION_SAY -> extra(EXTRA_TEXT)?.trim()?.takeIf { it.isNotEmpty() }?.let(::Say)
             else -> null
         }
 

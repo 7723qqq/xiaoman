@@ -11,6 +11,7 @@
                 <action android:name="dev.xiaoman.debug.RUN" />
                 <action android:name="dev.xiaoman.debug.STOP" />
                 <action android:name="dev.xiaoman.debug.RELOAD_SKILLS" />
+                <action android:name="dev.xiaoman.debug.SAY" />
             </intent-filter>
         </receiver>
     </application>
