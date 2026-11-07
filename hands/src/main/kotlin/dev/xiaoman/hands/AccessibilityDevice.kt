@@ -347,7 +347,12 @@ class AccessibilityDevice(
     private fun deeplink(service: XiaomanAccessibilityService, action: Action.OpenDeeplink): ActionResult {
         val uri = runCatching { Uri.parse(action.uri) }.getOrNull()
         if (uri?.scheme.isNullOrEmpty()) return ActionResult(false, "invalid uri ${action.uri}")
-        val intent = Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val intent = try {
+            AppLinks.intentFor(uri!!) ?: Intent(Intent.ACTION_VIEW, uri)
+        } catch (e: IllegalArgumentException) {
+            return ActionResult(false, e.message)
+        }
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         action.packageName?.let { intent.setPackage(it) }
         return start(service, intent, "opened ${action.uri}")
     }
