@@ -154,6 +154,7 @@ internal class ChatTools(
                 addJsonObject {
                     put("name", s.name)
                     put("description", s.description)
+                    put("channel", s.channel.wire)
                     put("apps", buildJsonArray { s.apps.forEach { add(it) } })
                     put("hasFlow", s.flow != null)
                 }

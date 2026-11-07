@@ -9,14 +9,17 @@ package dev.xiaoman.api
  * name: taxi-home                 # required, [a-z0-9-], unique
  * description: 打车回家            # required, one line; shown to the chat model to pick skills
  * apps: [com.sdu.didi.psnger]     # package names the skill may operate
- * channel: deeplink-then-gui      # api | cli | deeplink | gui | deeplink-then-gui | mixed
+ * channel: deeplink-then-gui      # api | cli | deeplink | gui | deeplink-then-gui | mixed | chat
  * confirm_before: [确认呼叫, 支付]  # words that force a user confirmation before tapping/typing on them
- * memory: [地址/家, 偏好/车型]       # notes to load into the operator prompt
+ * memory: [地址/家, 偏好/车型]       # notes to load into the operator or chat prompt
  * deeplinks:                      # optional named deep links; {placeholders} filled by the operator
  *   search: "amapuri://route/plan/?dname={destination}"
  * ---
- * Markdown instructions for the operator model.
+ * Markdown instructions for the operator or chat model.
  * ```
+ *
+ * Channel CHAT runs the Markdown body in the conversation; other channels serve phone tasks.
+ * Chat workflows forbid apps, deeplinks, confirm_before and flow.yaml; memory is allowed.
  */
 data class Skill(
     val name: String,
@@ -34,7 +37,7 @@ data class Skill(
 )
 
 enum class SkillChannel(val wire: String) {
-    API("api"), CLI("cli"), DEEPLINK("deeplink"), GUI("gui"), DEEPLINK_THEN_GUI("deeplink-then-gui"), MIXED("mixed");
+    API("api"), CLI("cli"), DEEPLINK("deeplink"), GUI("gui"), DEEPLINK_THEN_GUI("deeplink-then-gui"), MIXED("mixed"), CHAT("chat");
 
     companion object {
         fun fromWire(value: String): SkillChannel? = entries.firstOrNull { it.wire == value.trim().lowercase() }

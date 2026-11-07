@@ -11,6 +11,7 @@ application {
 }
 dependencies {
     implementation(project(":core-agent"))
+    implementation(project(":core-skills"))
     implementation(project(":core-llm"))
     implementation(project(":core-mcp"))
     implementation(project(":core-memory"))

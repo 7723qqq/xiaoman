@@ -11,9 +11,11 @@ fun main(args: Array<String>) {
         println("""小满网页版后端
 用法：web-server [--host 127.0.0.1] [--port 8787] [--static DIR]
   [--access-code CODE] [--allow-private] [--timezone Asia/Shanghai] [--session-hours 2]
-  [--stdio-mcp auto|on|off] [--max-stdio 20] [--class-tokens FILE] [--local [--no-browser]]
+  [--skills DIR] [--stdio-mcp auto|on|off] [--max-stdio 20] [--class-tokens FILE] [--local [--no-browser]]
        web-server tokens …   管理课堂令牌（web-server tokens --help）
 访问码也可通过 XIAOMAN_WEB_ACCESS_CODE 设置。默认仅监听本机。
+--skills DIR 加载聊天工作流，也可用 XIAOMAN_WEB_SKILLS 设置，命令行优先。
+--local 未配置目录时尝试工作目录或 jar 附近的 skills/examples、skills。
 --local 学员在自己电脑上运行（启动包脚本使用）：端口被占用时自动往后换，没给访问码就随机生成，
   打印局域网地址，并开启只能在本机打开的扫码页 /connect（自动用浏览器打开，--no-browser 不打开）。
 --stdio-mcp 控制需要 Node.js 的目录服务（12306 火车票）：auto（默认）在 PATH 里找到 node 和 npx 时开启，
@@ -33,7 +35,8 @@ fun main(args: Array<String>) {
         return
     }
     try {
-        var options = WebServer.Options(accessCode = System.getenv("XIAOMAN_WEB_ACCESS_CODE"))
+        var options = WebServer.Options(accessCode = System.getenv("XIAOMAN_WEB_ACCESS_CODE"),
+            skillsRoot = System.getenv("XIAOMAN_WEB_SKILLS")?.takeIf { it.isNotBlank() }?.let(Path::of))
         var stdioMode = "auto"
         var classTokens: Path? = null
         var local = false
@@ -45,6 +48,7 @@ fun main(args: Array<String>) {
             options = when (flag) {
                 "--host" -> options.copy(host = value())
                 "--port" -> options.copy(port = value().toInt().also { require(it in 0..65535) })
+                "--skills" -> options.copy(skillsRoot = Path.of(value()))
                 "--static" -> options.copy(staticRoot = Path.of(value()))
                 "--access-code" -> options.copy(accessCode = value())
                 "--allow-private", "--allow-private-mcp" -> options.copy(allowPrivateMcp = true)
@@ -58,6 +62,7 @@ fun main(args: Array<String>) {
                 else -> error("参数无效")
             }
         }
+        if (local && options.skillsRoot == null) options = options.copy(skillsRoot = localSkillsRoot())
         val nodeFound = StdioMcp.commandsOnPath()
         options = options.copy(stdioMcp = when (stdioMode) { "on" -> true; "off" -> false; else -> nodeFound })
         val (classConfig, classStatus) = try { ClassConfig.fromEnv(System.getenv(), classTokens) } catch (e: IllegalArgumentException) {
@@ -100,4 +105,15 @@ fun main(args: Array<String>) {
         System.err.println("启动失败，请检查参数和端口；使用 --help 查看用法")
         kotlin.system.exitProcess(1)
     }
+}
+
+/** Work directory first, then jar directory and its parent (installDist jars live under lib/). */
+internal fun localSkillsRoot(
+    workingDirectory: Path = Path.of("").toAbsolutePath(),
+    codeLocation: Path? = runCatching { Path.of(LocalLaunch::class.java.protectionDomain.codeSource.location.toURI()) }.getOrNull(),
+): Path? {
+    val nearby = codeLocation?.let { if (java.nio.file.Files.isDirectory(it)) it else it.parent }
+    return listOfNotNull(workingDirectory, nearby, nearby?.parent).distinct()
+        .flatMap { listOf(it.resolve("skills/examples"), it.resolve("skills")) }
+        .firstOrNull { java.nio.file.Files.isDirectory(it) }
 }

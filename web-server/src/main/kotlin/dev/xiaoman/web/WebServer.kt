@@ -5,6 +5,7 @@ import com.sun.net.httpserver.HttpServer
 import dev.xiaoman.api.*
 import dev.xiaoman.llm.*
 import dev.xiaoman.mcp.*
+import dev.xiaoman.skills.DirectorySkillRepository
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.*
 import okhttp3.Dns
@@ -36,6 +37,8 @@ class WebServer(
     data class Options(
         val host: String = "127.0.0.1", val port: Int = 8787, val staticRoot: Path? = null,
         val accessCode: String? = null,
+        /** Root containing skill folders; only chat workflows reach web sessions. */
+        val skillsRoot: Path? = null,
         /** Allows private addresses for both model and MCP endpoints (local tests only). */
         val allowPrivateMcp: Boolean = false,
         val timezone: ZoneId = ZoneId.of("Asia/Shanghai"), val sessionMillis: Long = 7_200_000,
@@ -53,6 +56,7 @@ class WebServer(
     ) {
         init { require(sessionMillis > 0 && maxSessions > 0 && chatTimeoutMillis > 0 && heartbeatMillis > 0 && maxStdioProcesses > 0) }
     }
+    private val skills = ChatSkillRepository(DirectorySkillRepository(options.skillsRoot?.let { listOf(it.toFile()) }.orEmpty()))
     private val sessions = linkedMapOf<String, WebSession>()
     private val executor = Executors.newCachedThreadPool()
     private val reaper = Executors.newSingleThreadScheduledExecutor()
@@ -71,6 +75,8 @@ class WebServer(
     val port: Int get() = server.address.port
     val sessionCount: Int get() = synchronized(sessions) { sessions.size }
     fun start(): WebServer {
+        val loaded = runBlocking { skills.reload() }
+        logger("聊天工作流：加载 ${loaded.skills.size} 个，问题 ${loaded.problems.size} 个")
         server.start()
         reaper.scheduleAtFixedRate({ expireSessions() }, 1, 1, TimeUnit.MINUTES)
         return this
@@ -90,7 +96,7 @@ class WebServer(
             sessions.values.minBy { it.lastUsed }.let { sessions.remove(it.id); it.close() }
         }
         val id = Base64.getUrlEncoder().withoutPadding().encodeToString(ByteArray(16).also { SecureRandom().nextBytes(it) })
-        WebSession(id, clock(), clock).also { sessions[id] = it }
+        WebSession(id, clock(), skills, clock).also { sessions[id] = it }
     }
     private class Problem(val status: Int, override val message: String) : Exception(message)
     private fun handle(x: HttpExchange) {
@@ -351,4 +357,13 @@ class WebServer(
     }
     companion object { private val API_PATHS = setOf("/api/info", "/api/catalog", "/api/session", "/api/chat", "/api/answer", "/api/mcp/test",
         "/api/claim/start", "/api/claim/verify") }
+}
+
+/** Filters every entry point so phone skills never reach the web agent. */
+internal class ChatSkillRepository(private val delegate: SkillRepository) : SkillRepository {
+    override suspend fun reload(): SkillLoadResult = delegate.reload().let {
+        it.copy(skills = it.skills.filter { skill -> skill.channel == SkillChannel.CHAT })
+    }
+    override suspend fun list(): List<Skill> = delegate.list().filter { it.channel == SkillChannel.CHAT }
+    override suspend fun get(name: String): Skill? = delegate.get(name)?.takeIf { it.channel == SkillChannel.CHAT }
 }

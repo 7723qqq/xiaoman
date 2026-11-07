@@ -20,7 +20,7 @@ NAME_RE = re.compile(r"^[a-z0-9-]+$")
 DEEPLINK_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://\S+$")
 # FlowParser.kt PACKAGE_NAME: two or more dot-separated Java identifiers
 PACKAGE_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$")
-CHANNELS = ("api", "cli", "deeplink", "gui", "deeplink-then-gui", "mixed")
+CHANNELS = ("api", "cli", "deeplink", "gui", "deeplink-then-gui", "mixed", "chat")
 KEYS = ("name", "description", "apps", "channel", "confirm_before", "memory", "deeplinks")
 STEP_KINDS = ("launch", "deeplink", "ai", "confirm", "tap", "type", "wait", "assert")
 MAX_WAIT_MILLIS = 600000
@@ -139,6 +139,9 @@ def lint_skill(directory: str) -> SkillInfo:
                                      % (skill["name"], folder)))
     flow_yaml = os.path.join(directory, "flow.yaml")
     if os.path.isfile(flow_yaml):
+        if skill["channel"] == "chat":
+            info.problems.append(Problem(flow_yaml, 1, "聊天工作流不操作手机，不能设置 flow.yaml"))
+            return info
         try:
             flow_text = _read(flow_yaml)
         except (OSError, UnicodeDecodeError) as e:
@@ -210,9 +213,12 @@ def _lint_skill_md(path: str, text: str, problems: list):
                     doc.problem("apps: '%s' is not a package name" % app, entries["apps"].key_line)
             apps = lst
 
+    channel = "gui"
     if "channel" in entries:
         wire = doc.string("channel", entries["channel"])
-        if wire is not None and wire.strip().lower() not in CHANNELS:
+        if wire is not None:
+            channel = wire.strip().lower()
+        if wire is not None and channel not in CHANNELS:
             doc.problem("unknown channel '%s'; expected one of %s" % (wire, ", ".join(CHANNELS)),
                         entries["channel"].key_line)
 
@@ -224,9 +230,14 @@ def _lint_skill_md(path: str, text: str, problems: list):
     if "deeplinks" in entries:
         deeplinks = _lint_deeplinks(doc, entries["deeplinks"])
 
+    if channel == "chat":
+        for key in ("apps", "deeplinks", "confirm_before"):
+            if key in entries:
+                doc.problem("聊天工作流不操作手机，不能设置 %s" % key, entries[key].key_line)
+
     if len(problems) > start or name is None or description is None:
         return None
-    return {"name": name, "apps": apps, "deeplinks": deeplinks}
+    return {"name": name, "apps": apps, "deeplinks": deeplinks, "channel": channel}
 
 
 def _lint_deeplinks(doc: _Doc, node) -> dict:

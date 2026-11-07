@@ -101,7 +101,26 @@ class SkillMdTest(LintTestCase):
         self.assertEqual(info.problems, [])
         info = lint_skill(self.skill("b", "---\nname: b\ndescription: d\nchannel: web\n---\n"))
         self.assertEqual(self.messages(info), [("SKILL.md", 4, "unknown channel 'web'; expected one of "
-                                                "api, cli, deeplink, gui, deeplink-then-gui, mixed")])
+                                                "api, cli, deeplink, gui, deeplink-then-gui, mixed, chat")])
+
+
+    def test_chat_allows_memory(self):
+        md = "---\nname: a\ndescription: 排今日开工卡\nchannel: CHAT\nmemory: [偏好/工作]\n---\n安排计划"
+        self.assertEqual(lint_skill(self.skill("a", md)).problems, [])
+
+    def test_chat_rejects_phone_fields_even_empty(self):
+        for number, field in enumerate(("apps: []", "deeplinks: {}", "confirm_before:")):
+            name = "chat-%d" % number
+            md = "---\nname: %s\ndescription: d\nchannel: chat\n%s\n---\n" % (name, field)
+            info = lint_skill(self.skill(name, md))
+            self.assertEqual(self.messages(info), [
+                ("SKILL.md", 5, "聊天工作流不操作手机，不能设置 " + field.split(":")[0])
+            ])
+
+    def test_chat_rejects_flow_even_empty(self):
+        md = "---\nname: a\ndescription: d\nchannel: chat\n---\n"
+        self.assertEqual(self.messages(lint_skill(self.skill("a", md, flow=""))),
+                         [("flow.yaml", 1, "聊天工作流不操作手机，不能设置 flow.yaml")])
 
     def test_string_lists(self):
         ok = "---\nname: a\ndescription: d\napps: com.x.y\nmemory: 地址/家\nconfirm_before:\n---\n"

@@ -12,7 +12,7 @@ import java.io.Closeable
 import java.security.MessageDigest
 import java.time.ZoneId
 
-class WebSession(val id: String, var lastUsed: Long, clock: () -> Long) : Closeable {
+class WebSession(val id: String, var lastUsed: Long, private val skills: SkillRepository = EmptySkills, clock: () -> Long) : Closeable {
     val memory = InMemoryMemory(clock)
     val channels = WebChannels()
     var busy = false
@@ -63,7 +63,7 @@ class WebSession(val id: String, var lastUsed: Long, clock: () -> Long) : Closea
         val operator = llm.create(chat.config.copy(role = ModelRole.OPERATOR))
         val p = McpToolProvider(config, channels, transportFactory = transports, clock = clock)
         provider = p
-        return XiaomanAgent(chat, operator, NoPhone, memory, EmptySkills,
+        return XiaomanAgent(chat, operator, NoPhone, memory, skills,
             PolicySentinel(approvals = { ApprovalAnswer(false) }, audit = {}), channels,
             IcsReminders(channels, timezone, clock), AgentConfig(phoneTasks = false), Prompts.NO_PHONE_PERSONA,
             clock = clock, externalTools = p).also { agent = it; hash = fingerprint }

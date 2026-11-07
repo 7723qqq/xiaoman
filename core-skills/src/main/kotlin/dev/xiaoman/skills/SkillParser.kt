@@ -33,6 +33,10 @@ object SkillParser {
         }
         // A flow is checked against the skill's deeplinks and apps, so it is only parsed once SKILL.md is valid.
         if (skill == null || flowYaml == null) return skill to all
+        if (skill.channel == SkillChannel.CHAT) {
+            all += SkillProblem("$source/flow.yaml", "聊天工作流不操作手机，不能设置 flow.yaml", 1)
+            return null to all
+        }
         val (flow, flowProblems) = FlowParser.parse(flowYaml, "$source/flow.yaml", skill.deeplinks, skill.apps)
         all += flowProblems
         return flow?.let { skill.copy(flow = it) } to all
@@ -90,6 +94,12 @@ object SkillParser {
         val confirmBefore = entries["confirm_before"]?.let(doc::stringList).orEmpty()
         val memory = entries["memory"]?.let(doc::stringList).orEmpty()
         val deeplinks = entries["deeplinks"]?.let { parseDeeplinks(doc, it) }.orEmpty()
+
+        if (channel == SkillChannel.CHAT) {
+            for (key in listOf("apps", "deeplinks", "confirm_before")) {
+                entries[key]?.let { doc.problem("聊天工作流不操作手机，不能设置 $key", it.keyNode) }
+            }
+        }
 
         if (doc.problems.isNotEmpty() || name == null || description == null) return null to doc.problems
         return Skill(

@@ -57,6 +57,26 @@ deploy/install.sh ubuntu@203.0.113.10 --sslip --access-code camp2-xiaoman --time
 3. 「服务」里勾选 AI 热点（免 Key）、高德等；点「测试连接」。
 4. Safari 底部「分享 → 添加到主屏幕」，之后从桌面图标打开。
 
+## 加载聊天工作流
+
+技能目录按 <目录>/<技能名>/SKILL.md 放置，正文格式见 [技能文档](../docs/skills.md)。
+网页版只加载 channel: chat 的技能，手机操作技能会被过滤。
+
+直接启动时可以指定目录：
+
+~~~bash
+XIAOMAN_WEB_SKILLS=/opt/xiaoman-web/skills bin/web-server
+# 命令行优先于环境变量
+bin/web-server --skills /opt/xiaoman-web/skills
+~~~
+
+部署后可在 /etc/xiaoman-web/env 中增加 XIAOMAN_WEB_SKILLS=/opt/xiaoman-web/skills，
+让服务用户能读取该目录，再重启 xiaoman-web 服务。修改技能也需要重启。
+启动日志会打印聊天工作流数量和解析问题数，有问题的技能不会加载。
+
+未配置时服务使用空技能；学员的 --local 模式会自动尝试工作目录或 jar 附近的 skills/examples、skills。
+建议课程部署显式指定目录，确保加载的是本节课的工作流。
+
 ## 课堂令牌（讲师 Key 兜底）
 
 没注册成功火山账号的学员，可以用讲师发的「课堂令牌」（形如 `xm-7k3f9q…`，每人一个）。服务器持有讲师的方舟 Key 并代为调用，学员只拿到令牌，永远拿不到真实 Key。安卓 App 和 iPhone 网页版都能用，按方舟返回的 usage 记账，有每日/总量上限，课后统一作废。没配置时这项功能完全关闭，其他行为不变。

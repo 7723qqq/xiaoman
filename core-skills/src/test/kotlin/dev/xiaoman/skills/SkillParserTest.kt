@@ -161,4 +161,31 @@ class SkillParserTest {
         assertNull(skill)
         assertEquals("/skills/taxi-home/flow.yaml", problems.single().source)
     }
+    @Test
+    fun chatWorkflowAllowsMemory() {
+        val (skill, problems) = parse(frontmatter("name: today-plan", "description: 排今日开工卡", "channel: CHAT", "memory: 偏好/工作"))
+        assertEquals(emptyList(), problems)
+        assertEquals(SkillChannel.CHAT, assertNotNull(skill).channel)
+        assertEquals(listOf("偏好/工作"), skill.memoryRefs)
+        assertEquals("body", skill.instructions)
+    }
+
+    @Test
+    fun chatWorkflowRejectsPhoneFieldsEvenWhenEmpty() {
+        for (field in listOf("apps: []", "deeplinks: {}", "confirm_before:")) {
+            val p = problem(frontmatter("name: a", "description: d", "channel: chat", field),
+                "聊天工作流不操作手机，不能设置 " + field.substringBefore(':'))
+            assertEquals(5, p.line)
+        }
+    }
+
+    @Test
+    fun chatWorkflowRejectsFlowEvenWhenEmpty() {
+        val md = frontmatter("name: a", "description: d", "channel: chat")
+        val (skill, problems) = SkillParser.parseFolder("a", md, "", "/skills/a")
+        assertNull(skill)
+        assertEquals("聊天工作流不操作手机，不能设置 flow.yaml", problems.single().message)
+        assertEquals("/skills/a/flow.yaml", problems.single().source)
+    }
+
 }

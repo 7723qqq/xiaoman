@@ -19,6 +19,7 @@ import dev.xiaoman.api.Observation
 import dev.xiaoman.api.ReminderScheduler
 import dev.xiaoman.api.Sentinel
 import dev.xiaoman.api.Skill
+import dev.xiaoman.api.SkillChannel
 import dev.xiaoman.api.SkillRepository
 import dev.xiaoman.api.StopSignal
 import dev.xiaoman.api.UserChannel
@@ -102,6 +103,7 @@ class XiaomanAgent(
 
         val wanted = skillName?.trim()?.takeIf { it.isNotEmpty() }
         val skill = wanted?.let { quietly(null) { skills.get(it) } }
+        if (skill?.channel == SkillChannel.CHAT) return finish(false, "${Prompts.CHAT_SKILL_PHONE_REFUSED}：${skill.name}", 0)
         if (skill != null) listener.onEvent(AgentEvent.SkillChosen(taskId, skill.name))
         listener.onEvent(AgentEvent.PhoneTaskStarted(taskId, goal, skill?.name))
         if (wanted != null && skill == null) return finish(false, "${Prompts.SKILL_NOT_FOUND}：$wanted", 0)
@@ -148,9 +150,33 @@ class XiaomanAgent(
         append(persona.trim())
         if (hasExternalTools) append("\n").append(Prompts.EXTERNAL_TOOLS_HINT)
         append("\n\n").append(Prompts.nowSection(ReminderTimes.promptNow(clock())))
-        append("\n\n").append(Prompts.SKILLS_HEADER).append('\n')
         val list = quietly(emptyList()) { skills.list() }
-        if (list.isEmpty()) append(Prompts.NO_SKILLS) else list.forEach { append("- ").append(it.name).append(": ").append(it.description).append('\n') }
+        if (config.phoneTasks) {
+            append("\n\n").append(Prompts.SKILLS_HEADER).append('\n')
+            val phoneSkills = list.filter { it.channel != SkillChannel.CHAT }
+            if (phoneSkills.isEmpty()) append(Prompts.NO_SKILLS)
+            else phoneSkills.forEach { append("- ").append(it.name).append(": ").append(it.description).append('\n') }
+        }
+        val chatSkills = list.filter { it.channel == SkillChannel.CHAT }
+        if (chatSkills.isNotEmpty()) {
+            append("\n\n").append(Prompts.CHAT_SKILLS_HEADER).append('\n').append(Prompts.CHAT_SKILLS_HINT)
+            var remaining = MAX_CHAT_SKILLS_CHARS
+            for (skill in chatSkills) {
+                append("\n\n### ").append(skill.name).append("：").append(skill.description)
+                if (remaining <= 0) continue
+                val instructions = skill.instructions.take(MAX_CHAT_SKILL_CHARS).take(remaining)
+                if (instructions.isNotEmpty()) append('\n').append(instructions)
+                remaining -= instructions.length
+                // References share the workflow budget so many notes cannot inflate the prompt.
+                for (ref in skill.memoryRefs) {
+                    if (remaining <= 0) break
+                    val note = quietly(null) { memory.read(ref) } ?: continue
+                    val text = NoteText.forPrompt(note).take(remaining)
+                    append("\n\n").append(text)
+                    remaining -= text.length
+                }
+            }
+        }
         val hits = quietly(emptyList()) { memory.search(userMessage, MEMORY_HITS) }
         if (hits.isNotEmpty()) {
             append("\n\n").append(Prompts.MEMORY_HEADER).append('\n')
@@ -225,6 +251,8 @@ class XiaomanAgent(
         const val HOWTO_TYPE = "howto"
         const val PATH_CATEGORY = "path"
         private const val MAX_HOWTO_NOTES = 3
+        const val MAX_CHAT_SKILL_CHARS = 2000
+        const val MAX_CHAT_SKILLS_CHARS = 8000
 
         fun howtoPermalink(key: String) = "howto/$key"
     }
