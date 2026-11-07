@@ -305,4 +305,14 @@ class PolicySentinelTest {
         assertFailsWith<CancellationException> { sentinel.authorize(ctx(), Action.Tap(Point(1, 1), target = "支付")) }
         assertEquals(false, records.single().approved)
     }
+
+    @Test
+    fun shoppingCountersAreNotConfirmWords() {
+        for (text in listOf("¥4.17 1000+人付款", "39人已购买", "2万人购买 包邮")) {
+            assertNull(ConfirmWords.longestIn(text, ConfirmWords.BUILT_IN), text)
+        }
+        assertEquals("付款", ConfirmWords.longestIn("1000+人付款 立即付款", ConfirmWords.BUILT_IN))
+        assertEquals("购买", ConfirmWords.longestIn("立即购买", ConfirmWords.BUILT_IN))
+        assertEquals("确认支付", ConfirmWords.longestIn("确认支付 ¥2.35", ConfirmWords.BUILT_IN))
+    }
 }

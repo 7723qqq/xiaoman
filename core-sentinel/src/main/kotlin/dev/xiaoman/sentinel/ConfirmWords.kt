@@ -6,6 +6,8 @@ import java.util.concurrent.ConcurrentHashMap
  * Matches confirmation words in on-screen text. Words are matched as substrings, except that an
  * end of the word made of a latin letter or digit must sit at a word boundary, case-insensitively:
  * "order" matches "Place Order" but not "border"; "支付" matches "立即支付".
+ * A Chinese word right after "人" or "人已" is a shopping counter, not a button: "付款" does not
+ * match "1000+人付款" or "39人已购买", but still matches "立即付款".
  */
 internal object ConfirmWords {
     val BUILT_IN: List<String> = listOf(
@@ -26,7 +28,7 @@ internal object ConfirmWords {
         words.filter { matches(it, text) }.maxByOrNull { it.length }
 
     private fun pattern(word: String): Regex = patterns.getOrPut(word) {
-        val head = if (word.first().isLatinWordChar()) "(?<![A-Za-z0-9])" else ""
+        val head = if (word.first().isLatinWordChar()) "(?<![A-Za-z0-9])" else "(?<!人)(?<!人已)"
         val tail = if (word.last().isLatinWordChar()) "(?![A-Za-z0-9])" else ""
         Regex(head + Regex.escape(word) + tail, RegexOption.IGNORE_CASE)
     }
