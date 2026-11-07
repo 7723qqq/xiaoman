@@ -90,7 +90,7 @@ internal class OperatorLoop(
                     feedback += Prompts.parseError(parsed.message)
                     continue
                 }
-                is ParsedReply.Ok -> parsed.action
+                is ParsedReply.Ok -> parsed.action.also { parseFailures = 0 }
             }
 
             if (constraint != null && action !is Action.Finish) {

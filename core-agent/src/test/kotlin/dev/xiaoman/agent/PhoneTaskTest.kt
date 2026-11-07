@@ -173,6 +173,15 @@ class PhoneTaskTest {
     }
 
     @Test
+    fun onlyConsecutiveParseFailuresEndTheTask() = runTest {
+        val h = Harness(device = FakeDevice(settings))
+        val wait = op("""{"type": "wait", "millis": 10}""")
+        repeat(OperatorLoop.PARSE_FAILURE_LIMIT) { h.operator.reply("不知道").reply(wait) }
+        h.operator.reply(op("""{"type": "finish", "success": true, "summary": "ok"}"""))
+        assertTrue(h.agent.runPhoneTask("看看", null, h.events, h.stop).success)
+    }
+
+    @Test
     fun unknownNodeIdIsRejected() = runTest {
         val h = Harness(device = FakeDevice(settings))
         h.operator.reply(op("""{"type": "tap", "nodeId": 99}""")).reply(op("""{"type": "finish", "success": true, "summary": "ok"}"""))
