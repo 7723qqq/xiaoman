@@ -1,0 +1,7 @@
+[
+  {
+    "source": "flow-unknown-step/flow.yaml",
+    "line": 2,
+    "message": "step 1 (jump): unknown step kind; expected one of launch, deeplink, ai, confirm, tap, type, wait, assert"
+  }
+]

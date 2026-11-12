@@ -1,0 +1,45 @@
+{
+  "skill": {
+    "name": "s",
+    "description": "d",
+    "apps": [
+      "com.allowed"
+    ],
+    "confirmBefore": [],
+    "deeplinks": {}
+  },
+  "screen": {
+    "packageName": "com.other",
+    "activityName": "Main",
+    "secure": false,
+    "nodes": [
+      {
+        "id": 1,
+        "text": "打开",
+        "description": null,
+        "bounds": {
+          "left": 0,
+          "top": 0,
+          "right": 1000,
+          "bottom": 1000
+        },
+        "clickable": true,
+        "editable": false,
+        "focused": false,
+        "password": false
+      }
+    ]
+  },
+  "actions": [
+    {
+      "action": {
+        "type": "tap",
+        "nodeId": 1
+      },
+      "decision": {
+        "kind": "deny",
+        "reason": "screen package com.other is outside the apps of skill s"
+      }
+    }
+  ]
+}

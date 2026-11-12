@@ -1,0 +1,13 @@
+[
+  {"kind": "Reply", "text": "你好"},
+  {"kind": "SkillChosen", "text": "外卖"},
+  {"kind": "PhoneTaskStarted", "text": "打车"},
+  {"kind": "StepPlanned", "step": 0, "action": {"type": "back"}},
+  {"kind": "StepExecuted", "step": 0, "action": {"type": "tap", "point": {"x": 500, "y": 900}, "target": "确认"}, "ok": true, "text": "点击成功", "decision": "allow"},
+  {"kind": "StepBlocked", "step": 1, "action": {"type": "tap", "target": "支付"}, "decision": {"kind": "deny", "reason": "敏感操作"}},
+  {"kind": "NeedsUser", "text": "验证码？", "takeover": true},
+  {"kind": "MemoryUpdated", "text": "places/家"},
+  {"kind": "ToolCalled", "tool": "amap__route", "summary": "已规划", "ok": true},
+  {"kind": "PhoneTaskFinished", "steps": 3, "text": "完成", "ok": true},
+  {"kind": "Failed", "text": "模型失败"}
+]

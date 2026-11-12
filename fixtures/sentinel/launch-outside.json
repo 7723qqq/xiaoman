@@ -1,0 +1,29 @@
+{
+  "skill": {
+    "name": "s",
+    "description": "d",
+    "apps": [
+      "com.allowed"
+    ],
+    "confirmBefore": [],
+    "deeplinks": {}
+  },
+  "screen": {
+    "packageName": "com.example",
+    "activityName": "Main",
+    "secure": false,
+    "nodes": []
+  },
+  "actions": [
+    {
+      "action": {
+        "type": "launch",
+        "packageName": "com.other"
+      },
+      "decision": {
+        "kind": "deny",
+        "reason": "package com.other is not in the apps of skill s"
+      }
+    }
+  ]
+}

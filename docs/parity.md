@@ -12,7 +12,7 @@
 
 | 门禁 | 命令 | 现状 |
 |---|---|---|
-| Rust 全量测试（含桌面 UI、GPUI） | `cargo test --workspace` | 通过（577 passed / 0 failed） |
+| Rust 全量测试（含桌面 UI、GPUI） | `cargo test --workspace` | 通过（584 passed / 0 failed） |
 | Rust 格式 | `cargo fmt --all --check` | 通过 |
 | Rust Clippy | `cargo clippy --workspace --all-targets -- -D warnings` | 通过（vendor `gpui-mobile` 修 2 处、关闭其不完整的 doctest） |
 | Kotlin 全量测试 | `./gradlew test` | 通过（含 app/hands/web-server） |
@@ -21,6 +21,12 @@
 | golden：Action | `fixtures/action/*.in.json` → `.out.json` | 两侧通过（11 例） |
 | golden：memory | `fixtures/memory/*.input.md` → `.rendered.md` | 两侧通过（4 例） |
 | golden：fingerprint | 两侧钉死 `-22de5649` 与 `Int.MIN_VALUE` | 两侧通过 |
+| golden：skills | `fixtures/skills`（9 例） | 两侧通过（问题列表逐字段） |
+| golden：sentinel | `fixtures/sentinel`（15 例） | 两侧通过（决策 kind/prompt/reason） |
+| golden：trace | `fixtures/trace`（11 事件） | 两侧通过（每行逐字节） |
+| golden：MCP | `fixtures/mcp/redaction.json` | 两侧通过（warnings + `***`） |
+| golden：LLM | `fixtures/llm/retry.json`（4 场景） | 两侧通过（重试/降级/请求数/sleeps） |
+| golden：CLI | `fixtures/skills` + `fixtures/trace` | 两侧通过（lint / traces show） |
 
 ## 1. core-api → xiaoman-api
 
@@ -82,7 +88,7 @@
 | `flow.yaml` 8 种步骤与字段校验 | `flow_parser.rs` | `skills.rs` | 一致 |
 | YAML 语法错误/重复键/行号 | `yaml.rs` | `skills.rs` | 一致 |
 | 目录仓库 reload/list/get、用户技能优先 | `repository.rs` | `skills.rs` | 一致 |
-| 两侧同一输入得到同一问题列表 | —— | 缺测试（共享 golden 未建） | 缺测试 |
+| 两侧同一输入得到同一问题列表 | `fixtures/skills`（9 例） | Kotlin `GoldenTest` / Rust `golden.rs` | 一致 |
 
 ## 5. core-sentinel → xiaoman-sentinel
 
@@ -98,7 +104,7 @@
 | deeplink 只比 scheme+host | `SchemeHost` | 单测 | 一致 |
 | 审批键 `word:`/`deeplink:`、TASK 级记忆、endTask | `task_approvals` | `policy.rs` | 一致 |
 | 每次决策写审计（含 approved） | `record` | `policy.rs` | 一致 |
-| 两侧同一用例得到同一决策 | —— | 缺测试（共享 golden 未建） | 缺测试 |
+| 两侧同一用例得到同一决策 | `fixtures/sentinel`（15 例） | Kotlin `GoldenTest` / Rust `golden.rs` | 一致 |
 
 ## 6. core-agent → xiaoman-agent
 
@@ -129,7 +135,7 @@
 | 工具名清洗、描述、schema 脱敏 | `provider.rs` | `provider.rs` | 一致 |
 | 确认策略（writes/all/none）与拒绝文案 | `provider.rs` | `provider.rs` | 一致 |
 | 调用结果截断、重试延迟 | `provider.rs` | `provider.rs` | 一致 |
-| 两侧同一配置得到同一脱敏输出 | —— | 缺测试（共享 golden 未建） | 缺测试 |
+| 两侧同一配置得到同一脱敏输出 | `fixtures/mcp/redaction.json` | Kotlin `GoldenTest` / Rust `golden.rs` | 一致 |
 
 ## 8. hands → xiaoman-android
 
@@ -158,7 +164,7 @@
 | 轨迹 JSONL、Key 脱敏、截图按步 | `trace.rs` | `trace.rs` | 一致 |
 | 聊天条目折叠/富文本 | `chat_item.rs` | `chat_item.rs` | 一致 |
 | MCP 选择持久化 | `mcp_settings` | `mcp_settings.rs` | 一致 |
-| 与 Kotlin `TraceWriter` 逐行一致 | —— | 缺测试（共享 golden 未建） | 缺测试 |
+| 与 Kotlin `TraceWriter` 逐行一致 | `fixtures/trace`（11 事件） | Kotlin `TraceGoldenTest` / Rust `trace_golden.rs` | 一致 |
 
 ## 10. web-server → xiaoman-web
 
@@ -202,7 +208,7 @@
 | `logs` logcat 解析 | `logcat.rs` | `traces_logcat.rs` | 一致 |
 | `traces pull/show` | `traces.rs` | `traces_logcat.rs` | 一致 |
 | YAML 子集解析 | `yamlsub.rs` | 22 例 | 一致 |
-| Python CLI 与 Rust CLI 输出逐字节 | —— | 缺测试（共享 golden 未建） | 缺测试 |
+| Python CLI 与 Rust CLI 输出逐字节 | `fixtures/skills` + `fixtures/trace` | Rust `golden.rs` 调起两侧 CLI | 一致（lint / traces show） |
 
 ## 13. Android 宿主与桌面 UI
 
@@ -248,17 +254,22 @@
 | iOS reminders 拼接脚本 | `on run argv` + macOS/路径判断 | 单测 |
 | iOS/GPUI 注释说没做、实际做了 | 注释改成实际行为 | 文档 |
 | 两处 Kotlin 测试在 Windows 失败 | POSIX 权限判断、`windows=false` 显式传参 | `./gradlew test` |
+| skill YAML 错误信息和行号两侧不同 | 固定为 `invalid YAML`；行号钳到文本最后一行 | 两侧 skills golden |
 | Rust 未进 git | 本轮按模块提交 | `git log` |
 
-## 16. 仍缺的共享 golden（不是功能缺口）
+## 16. 共享 golden 的覆盖范围
 
-| 域 | 需要的 fixture | 现状 |
-|---|---|---|
-| skills | `SKILL.md`/`flow.yaml` → 问题列表（message/line） | 两侧各有测试，缺同一份文件 |
-| sentinel | Action+Screen+Skill → 决策（type/prompt/reason） | 23 例单侧，缺同一份文件 |
-| trace | 事件序列 → `trace.jsonl` 每行 | Rust 钉了文本，Kotlin 未共享 |
-| MCP | 配置+输入 → 脱敏输出 | 16 例单侧，缺同一份文件 |
-| CLI | 同一技能目录 → lint/push/run/logs/traces 输出 | Python/Rust 各有测试，缺逐字节比较 |
-| LLM | 同一请求 → 重试/降级序列 | 18 例单侧，缺共享脚本 |
+| 域 | fixture | 两侧测试 | 覆盖 |
+|---|---|---|---|
+| skills | `fixtures/skills`（9 例） | Kotlin `GoldenTest` / Rust `golden.rs` | 问题列表的 source、line、message |
+| sentinel | `fixtures/sentinel`（15 例） | Kotlin `GoldenTest` / Rust `golden.rs` | 决策 kind、prompt、reason |
+| trace | `fixtures/trace`（11 事件） | Kotlin `TraceGoldenTest` / Rust `trace_golden.rs` | `trace.jsonl` 每行逐字节 |
+| MCP | `fixtures/mcp/redaction.json` | Kotlin `GoldenTest` / Rust `golden.rs` | warnings 与脱敏后的 `***` 输出 |
+| LLM | `fixtures/llm/retry.json`（4 场景） | Kotlin `GoldenTest` / Rust `golden.rs` | 重试、JSON 模式降级、错误 retryable、请求数、sleeps |
+| CLI | `fixtures/skills` + `fixtures/trace` | Rust `golden.rs` 调起 Python 与 Rust 两个 CLI | `lint` 与 `traces show` 的 stdout、stderr、退出码 |
+| Action / memory / fingerprint | `fixtures/action`、`fixtures/memory`、两侧常量 | 见 §0 | JSON 线格式、frontmatter、fingerprint |
 
-这些是本轮之后第一批要补的测试；行为已经在两侧实现并通过各自测试。
+仍缺的跨语言用例只有两类，都是测试覆盖而非功能缺口：
+
+- CLI 的 `push` / `run` / `stop` / `logs`：需要 adb 设备桥；两侧各有 fake adb 的单侧测试，跨语言比较还需要一个可执行的 fake adb（Windows 与 Linux 各一份）。
+- 真机、MuMu 与 Mac + iPhone 的端到端：Android 已构建 APK 并有手工记录，WDA 逻辑由 fake command 覆盖。

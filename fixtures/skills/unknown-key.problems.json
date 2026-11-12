@@ -1,0 +1,7 @@
+[
+  {
+    "source": "unknown-key/SKILL.md",
+    "line": 4,
+    "message": "unknown key 'extra'; expected one of name, description, apps, channel, confirm_before, memory, deeplinks"
+  }
+]

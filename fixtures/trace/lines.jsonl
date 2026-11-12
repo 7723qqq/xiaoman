@@ -1,0 +1,11 @@
+{"time":1761830000000,"run":"r1","kind":"Reply","step":null,"action":null,"text":"你好","ok":null,"decision":null}
+{"time":1761830000000,"run":"r1","kind":"SkillChosen","step":null,"action":null,"text":"外卖","ok":null,"decision":null}
+{"time":1761830000000,"run":"r1","kind":"PhoneTaskStarted","step":null,"action":null,"text":"打车","ok":null,"decision":null}
+{"time":1761830000000,"run":"r1","kind":"StepPlanned","step":0,"action":{"type":"back"},"text":null,"ok":null,"decision":null}
+{"time":1761830000000,"run":"r1","kind":"StepExecuted","step":0,"action":{"type":"tap","point":{"x":500,"y":900},"target":"确认"},"text":"点击成功","ok":true,"decision":"allow"}
+{"time":1761830000000,"run":"r1","kind":"StepBlocked","step":1,"action":{"type":"tap","target":"支付"},"text":null,"ok":false,"decision":"deny: 敏感操作"}
+{"time":1761830000000,"run":"r1","kind":"NeedsUser","step":null,"action":null,"text":"验证码？","ok":null,"decision":null}
+{"time":1761830000000,"run":"r1","kind":"MemoryUpdated","step":null,"action":null,"text":"places/家","ok":null,"decision":null}
+{"time":1761830000000,"run":"r1","kind":"ToolCalled","step":null,"action":null,"text":"amap__route: 已规划","ok":true,"decision":null}
+{"time":1761830000000,"run":"r1","kind":"PhoneTaskFinished","step":3,"action":null,"text":"完成","ok":true,"decision":null}
+{"time":1761830000000,"run":"r1","kind":"Failed","step":null,"action":null,"text":"模型失败","ok":null,"decision":null}

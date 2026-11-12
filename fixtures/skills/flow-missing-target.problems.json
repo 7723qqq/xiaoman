@@ -1,0 +1,7 @@
+[
+  {
+    "source": "flow-missing-target/flow.yaml",
+    "line": 2,
+    "message": "step 1 (tap): expected a target description"
+  }
+]

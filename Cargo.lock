@@ -10601,6 +10601,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "pollster 0.4.0",
+ "serde_json",
  "xiaoman-api",
 ]
 
@@ -10610,6 +10611,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "regex",
+ "serde_json",
  "tempfile",
  "tokio",
  "xiaoman-api",

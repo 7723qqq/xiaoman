@@ -1,0 +1,7 @@
+[
+  {
+    "source": "bad-yaml/SKILL.md",
+    "line": 2,
+    "message": "invalid YAML"
+  }
+]

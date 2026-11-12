@@ -33,10 +33,10 @@ internal class YamlDoc(val source: String, private val lineOffset: Int = 0) {
         Compose(SETTINGS).composeString(text).orElse(null)
     } catch (e: MarkedYamlEngineException) {
         val line = e.problemMark.map { it.line + 1 + lineOffset }.orElse(null)
-        problemAt("invalid YAML: ${e.problem ?: e.message}", line)
+        problemAt("invalid YAML", line)
         null
     } catch (e: YamlEngineException) {
-        problemAt("invalid YAML: ${e.message}", null)
+        problemAt("invalid YAML", null)
         null
     }
 

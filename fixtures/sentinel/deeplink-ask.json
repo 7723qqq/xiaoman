@@ -1,0 +1,30 @@
+{
+  "skill": {
+    "name": "s",
+    "description": "d",
+    "apps": [],
+    "confirmBefore": [],
+    "deeplinks": {
+      "route": "didi://route/plan"
+    }
+  },
+  "screen": {
+    "packageName": "com.example",
+    "activityName": "Main",
+    "secure": false,
+    "nodes": []
+  },
+  "actions": [
+    {
+      "action": {
+        "type": "deeplink",
+        "uri": "amapuri://route/plan/"
+      },
+      "decision": {
+        "kind": "ask",
+        "prompt": "即将打开链接「amapuri://route/plan/」，是否继续？",
+        "reason": "deeplink matches none of the deeplinks of skill s"
+      }
+    }
+  ]
+}

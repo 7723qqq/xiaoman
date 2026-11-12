@@ -1,0 +1,19 @@
+{
+  "skill": null,
+  "screen": {
+    "packageName": "com.example",
+    "activityName": "Main",
+    "secure": true,
+    "nodes": []
+  },
+  "actions": [
+    {
+      "action": {
+        "type": "back"
+      },
+      "decision": {
+        "kind": "allow"
+      }
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "env": {
+    "TOKEN": "secret-token-123",
+    "OTHER": "other-secret-456",
+    "SHORT": "abc"
+  },
+  "config": {
+    "mcpServers": {
+      "_comment": {"url": "https://ignored.example"},
+      "disabled": {"enabled": false, "url": "https://ignored.example"},
+      "bad name": {"url": "https://ignored.example"},
+      "missing": {"url": "https://x.example/mcp?k=${MISSING}"},
+      "map": {
+        "url": "https://mcp.example.com/mcp?k=${TOKEN}&short=${SHORT}",
+        "headers": {"Authorization": "Bearer ${OTHER}", "X-Short": "${SHORT}"}
+      },
+      "echo": {"command": "npx", "args": ["-y", "echo-mcp"], "env": {"API_KEY": "${TOKEN}"}}
+    }
+  },
+  "warnings": [
+    "MCP 服务器未启用：名称只能包含字母、数字、下划线或连字符",
+    "服务器 missing 未启用：缺少环境变量 MISSING"
+  ],
+  "texts": [
+    {"input": "token=secret-token-123", "output": "token=***"},
+    {"input": "Authorization: Bearer other-secret-456", "output": "Authorization: ***"},
+    {"input": "short=abc stays", "output": "short=abc stays"},
+    {"input": "https://mcp.example.com/mcp?k=secret-token-123&short=abc", "output": "https://mcp.example.com/mcp?k=***&short=abc"},
+    {"input": "two: secret-token-123 and other-secret-456", "output": "two: *** and ***"}
+  ]
+}

@@ -122,11 +122,9 @@ impl YamlDoc {
     pub fn compose(&mut self, text: &str) -> Option<Node> {
         match parse_tree(text) {
             Ok(node) => node,
-            Err((message, line)) => {
-                self.problem_at(
-                    format!("invalid YAML: {message}"),
-                    line.map(|line| line + self.line_offset),
-                );
+            Err((_message, line)) => {
+                // Parser-specific detail is not part of the contract; the line is.
+                self.problem_at("invalid YAML", line.map(|line| line + self.line_offset));
                 None
             }
         }
@@ -217,7 +215,10 @@ fn parse_tree(text: &str) -> Result<Option<Node>, (String, Option<usize>)> {
             Ok((Event::StreamEnd, _)) => break,
             Ok(pair) => events.push(pair),
             Err(error) => {
-                let line = Some(error.marker().line());
+                // The scanner can point one line past the text (EOF); the contract is the line
+                // that holds the offending content, so clamp to the last line.
+                let last = text.lines().count().max(1);
+                let line = Some(error.marker().line().min(last));
                 return Err((error.info().to_string(), line));
             }
         }

@@ -1,0 +1,4 @@
+steps:
+  - launch: com.example.app
+  - tap: 确认按钮
+  - wait: 500

@@ -1,0 +1,7 @@
+[
+  {
+    "source": "missing-name/SKILL.md",
+    "line": 1,
+    "message": "missing required key 'name'"
+  }
+]

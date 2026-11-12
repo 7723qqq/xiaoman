@@ -1,0 +1,20 @@
+{
+  "skill": null,
+  "screen": {
+    "packageName": "com.example",
+    "activityName": "Main",
+    "secure": true,
+    "nodes": []
+  },
+  "actions": [
+    {
+      "action": {
+        "type": "ask_user",
+        "question": "验证码？"
+      },
+      "decision": {
+        "kind": "allow"
+      }
+    }
+  ]
+}

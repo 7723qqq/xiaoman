@@ -1,0 +1,21 @@
+{
+  "skill": null,
+  "screen": {
+    "packageName": "com.example",
+    "activityName": "Main",
+    "secure": true,
+    "nodes": []
+  },
+  "actions": [
+    {
+      "action": {
+        "type": "tap",
+        "target": "删除"
+      },
+      "decision": {
+        "kind": "deny",
+        "reason": "secure screen: the user must take over"
+      }
+    }
+  ]
+}

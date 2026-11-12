@@ -1,0 +1,28 @@
+{
+  "skill": {
+    "name": "s",
+    "description": "d",
+    "apps": [],
+    "confirmBefore": [],
+    "deeplinks": {
+      "route": "didi://route/plan"
+    }
+  },
+  "screen": {
+    "packageName": "com.example",
+    "activityName": "Main",
+    "secure": false,
+    "nodes": []
+  },
+  "actions": [
+    {
+      "action": {
+        "type": "deeplink",
+        "uri": "didi://route/other"
+      },
+      "decision": {
+        "kind": "allow"
+      }
+    }
+  ]
+}

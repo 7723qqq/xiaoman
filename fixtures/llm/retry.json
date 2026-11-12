@@ -1,0 +1,38 @@
+[
+  {
+    "name": "429-then-ok",
+    "maxRetries": 2,
+    "jsonMode": false,
+    "responses": [
+      {"status": 429, "retryAfter": "0", "body": "{\"error\":{\"code\":\"RateLimit\",\"message\":\"slow down\"}}"},
+      {"status": 200, "body": "{\"choices\":[{\"message\":{\"content\":\"好\"},\"finish_reason\":\"stop\"}]}"}
+    ],
+    "expected": {"ok": true, "text": "好", "attempts": 2, "sleeps": [0]}
+  },
+  {
+    "name": "json-mode-fallback",
+    "jsonMode": true,
+    "responses": [
+      {"status": 400, "body": "{\"error\":{\"message\":\"response_format is not supported\"}}"},
+      {"status": 200, "body": "{\"choices\":[{\"message\":{\"content\":\"好\"},\"finish_reason\":\"stop\"}]}"}
+    ],
+    "expected": {"ok": true, "text": "好", "attempts": 2, "lastRequestWithoutResponseFormat": true}
+  },
+  {
+    "name": "500-exhausts-retries",
+    "maxRetries": 1,
+    "responses": [
+      {"status": 500, "body": "{\"error\":{\"message\":\"boom\"}}"},
+      {"status": 500, "body": "{\"error\":{\"message\":\"boom\"}}"}
+    ],
+    "expected": {"ok": false, "retryable": true, "attempts": 2}
+  },
+  {
+    "name": "400-no-retry",
+    "maxRetries": 2,
+    "responses": [
+      {"status": 400, "body": "{\"error\":{\"code\":\"InvalidParameter\",\"message\":\"bad\"}}"}
+    ],
+    "expected": {"ok": false, "retryable": false, "attempts": 1}
+  }
+]
