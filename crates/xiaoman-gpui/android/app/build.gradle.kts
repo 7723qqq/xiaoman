@@ -97,9 +97,15 @@ val cargoBuild = tasks.register("cargoBuild") {
     group = "rust"
     description = "Builds libxiaoman_gpui.so for arm64-v8a."
     inputs.dir(crateDir.resolve("src"))
-    inputs.dir(crateDir.resolve("../xiaoman-android/src"))
-    inputs.dir(crateDir.resolve("../xiaoman-app/src"))
-    inputs.dir(crateDir.resolve("../xiaoman-api/src"))
+    // Every crate the APK links: a change in any of them must rebuild the `.so`.
+    listOf(
+        "xiaoman-android", "xiaoman-app", "xiaoman-api", "xiaoman-sentinel", "xiaoman-llm",
+        "xiaoman-memory", "xiaoman-skills", "xiaoman-agent", "xiaoman-mcp",
+    ).forEach { crate ->
+        inputs.dir(crateDir.resolve("../$crate/src"))
+        inputs.files(crateDir.resolve("../$crate/Cargo.toml"))
+    }
+    inputs.files(crateDir.resolve("../../Cargo.toml"), crateDir.resolve("../../Cargo.lock"))
     // The vendored mobile platform crate is part of the build too.
     inputs.dir(crateDir.resolve("vendor/gpui-mobile/src"))
     inputs.files(crateDir.resolve("vendor/gpui-mobile/Cargo.toml"))

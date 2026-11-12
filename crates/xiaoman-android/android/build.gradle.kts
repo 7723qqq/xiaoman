@@ -174,6 +174,14 @@ val cargoNdk = tasks.register("cargoNdk") {
     description = "Builds libxiaoman_android.so with cargo and copies it into jniLibs (ABIs: ${rustAbis.joinToString()})."
     onlyIf("xiaoman.rust.skip is not true") { providers.gradleProperty("xiaoman.rust.skip").orNull != "true" }
     inputs.dir(rustCrateDir.resolve("src"))
+    // Every crate the APK links: a change in any of them must rebuild the `.so`.
+    listOf(
+        "xiaoman-app", "xiaoman-api", "xiaoman-sentinel", "xiaoman-llm", "xiaoman-memory",
+        "xiaoman-skills", "xiaoman-agent", "xiaoman-mcp",
+    ).forEach { crate ->
+        inputs.dir(rustCrateDir.resolve("../$crate/src"))
+        inputs.files(rustCrateDir.resolve("../$crate/Cargo.toml"))
+    }
     inputs.files(rustCrateDir.resolve("Cargo.toml"), rustCrateDir.resolve("../../Cargo.lock"))
     inputs.property("abis", rustAbis)
     outputs.dir(rustJniLibsDir)
