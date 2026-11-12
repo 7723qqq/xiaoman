@@ -74,6 +74,8 @@ pub fn android_main(app: android_activity::AndroidApp) {
 
     Application::with_platform(shared.into_rc()).run(move |cx: &mut App| {
         gpui_kit::init(cx);
+        // Component-owned labels (the long-press menu, dialogs) follow the app's language.
+        gpui_kit::component::set_locale("zh-CN");
         // gpui-mobile maps the Android back button to `escape`; the shell answers it.
         cx.bind_keys([gpui::KeyBinding::new("escape", app::Back, None)]);
         log::info!("Application::run: opening the chat window");
