@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The GPUI Android host: the whole UI runs in `libxiaoman_gpui.so` inside a NativeActivity, while
+  Kotlin keeps the platform objects Rust cannot own — the accessibility service, the foreground
+  service, notifications and the alarm receiver.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <!-- Package visibility: launchers (installed apps / launch), https handlers (deeplinks), clock. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SET_ALARM" />
+        </intent>
+    </queries>
+
+    <!-- wgpu renders through Vulkan where available and falls back to GLES 3. -->
+    <uses-feature android:glEsVersion="0x00030000" android:required="true" />
+    <uses-feature android:name="android.hardware.vulkan.level" android:required="false" android:version="0" />
+    <uses-feature android:name="android.hardware.vulkan.version" android:required="false" android:version="0x00401000" />
+
+    <application
+        android:name="dev.xiaoman.app.HostApplication"
+        android:allowBackup="false"
+        android:hardwareAccelerated="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:largeHeap="true"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.XiaomanGpui">
+
+        <!--
+          `GpuiInputActivity` loads the library named by `android.app.lib_name` and installs the
+          InputConnection used by Chinese IMEs. `adjustResize` keeps the keyboard off the input row.
+        -->
+        <activity
+            android:name="dev.gpui.mobile.GpuiInputActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|navigation|uiMode|density"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:screenOrientation="unspecified"
+            android:windowSoftInputMode="adjustResize">
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="${nativeLibraryName}" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- The user-enabled accessibility service; Rust owns the tree walk and the gestures. -->
+        <service
+            android:name="dev.xiaoman.hands.XiaomanAccessibilityService"
+            android:exported="true"
+            android:label="@string/xiaoman_accessibility_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/xiaoman_accessibility" />
+        </service>
+
+        <!-- Keeps the process in the foreground while a task runs, with the Stop action. -->
+        <service
+            android:name="dev.xiaoman.app.AgentService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="On-device personal agent that operates other apps through an accessibility service while the user waits for a task to finish; the user can stop it from the notification." />
+        </service>
+
+        <!-- Debug build bridge for the `xiaoman` CLI (RUN / STOP / RELOAD_SKILLS / SAY). -->
+        <receiver
+            android:name="dev.xiaoman.app.DebugReceiver"
+            android:exported="true" />
+
+        <!-- AlarmManager reminder and the notification card's own actions. -->
+        <receiver
+            android:name="dev.xiaoman.app.ReminderReceiver"
+            android:exported="false" />
+        <receiver
+            android:name="dev.xiaoman.app.NotificationActionReceiver"
+            android:exported="false" />
+
+        <!-- Scripted see-and-touch run: adb shell am broadcast -a dev.xiaoman.smoke. -->
+        <receiver
+            android:name="dev.xiaoman.app.SmokeReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="dev.xiaoman.smoke" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

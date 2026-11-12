@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A plain framework theme: the host uses Compose, which brings its own colours, and nothing here
+  depends on AppCompat or Material Components. Same parent as the Kotlin app's `Theme.Xiaoman`.
+-->
+<resources>
+    <style name="Theme.XiaomanHost" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

@@ -1,0 +1,35 @@
+[package]
+name = "xiaoman-android"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+# `cdylib` is `libxiaoman_android.so`, the library `System.loadLibrary("xiaoman_android")` loads;
+# `rlib` keeps `cargo test` and the integration tests of this crate building on the host.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+xiaoman-api = { path = "../xiaoman-api" }
+xiaoman-app = { path = "../xiaoman-app" }
+xiaoman-agent = { path = "../xiaoman-agent" }
+xiaoman-llm = { path = "../xiaoman-llm" }
+xiaoman-mcp = { path = "../xiaoman-mcp" }
+xiaoman-memory = { path = "../xiaoman-memory" }
+xiaoman-sentinel = { path = "../xiaoman-sentinel" }
+xiaoman-skills = { path = "../xiaoman-skills" }
+serde_json.workspace = true
+async-trait.workspace = true
+image = { version = "0.25", default-features = false, features = ["png"] }
+tokio = { version = "1", features = ["sync", "time"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+ndk-context = "0.1"
+# `smoke` drives the async `Device` on a current-thread runtime; `rt` is the only feature it adds.
+tokio = { version = "1", features = ["rt"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

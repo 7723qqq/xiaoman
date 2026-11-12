@@ -1,0 +1,37 @@
+[package]
+name = "xiaoman-ios"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+name = "xiaoman_ios"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ios-runner"
+path = "src/main.rs"
+
+[dependencies]
+xiaoman-api = { path = "../xiaoman-api" }
+xiaoman-agent = { path = "../xiaoman-agent" }
+xiaoman-llm = { path = "../xiaoman-llm" }
+xiaoman-mcp = { path = "../xiaoman-mcp" }
+xiaoman-memory = { path = "../xiaoman-memory" }
+xiaoman-skills = { path = "../xiaoman-skills" }
+xiaoman-sentinel = { path = "../xiaoman-sentinel" }
+async-trait.workspace = true
+serde_json.workspace = true
+base64 = "0.22"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+clap = "4"
+image = { version = "0.25", default-features = false, features = ["png"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+roxmltree = "0.21"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+wiremock = "0.6"

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Chinese copy taken from the existing app (`app/src/main/res/values/strings.xml` and
+  `hands/src/main/res/values-zh/strings.xml`), so the two products read the same in system Settings
+  and in the notification shade. Host-only strings are marked below.
+-->
+<resources>
+    <string name="app_name">小满</string>
+
+    <!-- Accessibility service, identical to the Kotlin app. -->
+    <string name="xiaoman_accessibility_label">小满</string>
+    <string name="xiaoman_accessibility_summary">让小满替你操作其他应用</string>
+    <string name="xiaoman_accessibility_description">当你让小满执行任务时，它通过此服务读取屏幕内容、截屏，并在其他应用中点击、滑动和输入。屏幕内容只发送给你配置的 AI 模型。支付、发送消息等敏感操作始终会先征得你的确认，你也可以随时点击“停止”按钮结束任务。</string>
+
+    <!-- Foreground service notification, identical to the Kotlin app. -->
+    <string name="channel_status">任务状态</string>
+    <string name="channel_status_description">小满正在运行任务时显示</string>
+    <string name="notification_running">小满正在工作</string>
+    <string name="chat_stop">停止</string>
+
+    <!-- Attention channels: approvals, questions and reminders. -->
+    <string name="channel_attention">需要你确认</string>
+    <string name="channel_attention_description">小满等待你确认或回答时显示</string>
+    <string name="channel_reminders">提醒</string>
+    <string name="channel_reminders_description">到点提醒</string>
+    <string name="notification_approval">小满需要你确认</string>
+    <string name="notification_question">小满在等你回答</string>
+    <string name="notification_takeover">请接管手机</string>
+    <string name="notification_reminder">小满提醒</string>
+    <string name="approval_once">允许一次</string>
+    <string name="approval_task">本次任务都允许</string>
+    <string name="approval_deny">暂不允许</string>
+
+    <!-- Host screen. -->
+    <string name="host_title">小满 · Android 宿主</string>
+    <string name="host_accessibility">无障碍服务</string>
+    <string name="host_service">前台服务</string>
+    <string name="host_library">Rust 库</string>
+    <string name="host_state_on">已开启</string>
+    <string name="host_state_off">未开启</string>
+    <string name="host_library_loaded">已加载</string>
+    <string name="host_library_missing">未加载</string>
+    <string name="host_open_accessibility">去开启无障碍服务</string>
+    <string name="host_start">启动前台服务</string>
+    <string name="host_stop">停止</string>
+    <string name="host_allow_notifications">允许通知</string>
+    <string name="host_note">这是一层很薄的 Android 宿主：无障碍服务、前台服务和通知由 Kotlin 提供，任务的规划、截图、点击和判断都在 libxiaoman_android.so 里。无障碍服务未开启时，Rust 侧会报告“无障碍服务未开启”。</string>
+</resources>

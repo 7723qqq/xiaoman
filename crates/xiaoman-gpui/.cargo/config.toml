@@ -1,0 +1,4 @@
+# Cross-compiling for Android: fontconfig is not available on the NDK, and
+# `yeslogic-fontconfig-sys` otherwise tries to link it at build time.
+[env]
+RUST_FONTCONFIG_DLOPEN = "on"

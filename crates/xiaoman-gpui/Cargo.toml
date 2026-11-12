@@ -1,0 +1,28 @@
+[package]
+name = "xiaoman-gpui"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT"
+
+[lib]
+name = "xiaoman_gpui"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+gpui = { package = "gpui-pre", version = "=0.3.6", default-features = false }
+gpui-kit = { version = "=0.6.6", default-features = false, features = ["component"] }
+gpui-mobile = { path = "vendor/gpui-mobile", default-features = false }
+xiaoman-api = { path = "../xiaoman-api" }
+xiaoman-app = { path = "../xiaoman-app" }
+xiaoman-memory = { path = "../xiaoman-memory" }
+xiaoman-android = { path = "../xiaoman-android" }
+xiaoman-mcp = { path = "../xiaoman-mcp" }
+log = "0.4"
+
+[target.'cfg(target_os = "android")'.dependencies]
+android-activity = { version = "0.6", features = ["native-activity"] }
+android_logger = "0.15"
+
+[dev-dependencies]
+tempfile = "3"

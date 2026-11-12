@@ -1,0 +1,42 @@
+[package]
+name = "xiaoman-web"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "web-server"
+path = "src/main.rs"
+
+[dependencies]
+xiaoman-api = { path = "../xiaoman-api" }
+xiaoman-agent = { path = "../xiaoman-agent" }
+xiaoman-llm = { path = "../xiaoman-llm" }
+xiaoman-mcp = { path = "../xiaoman-mcp" }
+xiaoman-memory = { path = "../xiaoman-memory" }
+xiaoman-sentinel = { path = "../xiaoman-sentinel" }
+xiaoman-skills = { path = "../xiaoman-skills" }
+async-trait.workspace = true
+serde_json.workspace = true
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "query"] }
+base64 = "0.22"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+futures = "0.3"
+getrandom = "0.3"
+if-addrs = "0.13"
+percent-encoding = "2"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+sha2 = "0.10"
+tokio = { version = "1", features = ["macros", "net", "rt", "rt-multi-thread", "signal", "sync", "time"] }
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["fs"] }
+unicode-script = "0.5"
+url = "2"
+
+[dev-dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+wiremock = "0.6"
