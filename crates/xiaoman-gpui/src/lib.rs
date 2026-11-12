@@ -16,7 +16,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 #[cfg(target_os = "android")]
-use gpui::{App, Application, WindowOptions};
+use gpui::{App, AppContext, Application, WindowOptions};
 #[cfg(target_os = "android")]
 use xiaoman_app::session::Session;
 
