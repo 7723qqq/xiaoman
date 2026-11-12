@@ -12,8 +12,8 @@
 #   --timezone ZONE       提醒用的时区，默认 Asia/Shanghai
 #   --port N              web-server 本机端口，默认 8787（只在服务器本机监听）
 #   --with-node           同时安装 Node.js，开启 12306 火车票（stdio MCP），并预热 npx 缓存
-#   --install-deps        服务器缺 Java 17 / Caddy 时自动用 apt 安装（不加则只提示怎么装）
-#   --dist DIR            已构建好的 installDist 目录；默认自动构建 :web-server:installDist
+#   --install-deps        服务器缺 Caddy / Node 时自动用 apt 安装（不加则只提示怎么装）
+#   --dist DIR            已构建好的目录（含 bin/web-server 与 resources/web）；默认用 cargo 构建
 #   --skip-build          不构建，直接用 --dist 或默认构建目录里的产物
 #
 #   课堂令牌（可选，默认关闭；讲师用自己的方舟 Key 兜底，学员只拿令牌）：
@@ -127,26 +127,20 @@ fi
 ssh_opts=(-o ConnectTimeout=15)
 remote() { ssh "${ssh_opts[@]}" "$target" "$@"; }
 
-# 1. 构建 installDist（与 scripts/gradle.sh 一样把构建目录放在仓库外时，也能找到产物）。
+# 1. 构建 Rust 版 web-server（不需要 Android SDK，也不需要 JDK）。
 if [[ -z "$dist" ]]; then
   if [[ "$skip_build" == false ]]; then
-    echo "==> 构建 web-server（-Pxiaoman.iosOnly=true，不需要 Android SDK）"
-    if [[ -n "${XIAOMAN_TOOLCHAIN:-}" || -n "${XIAOMAN_BUILD_DIR:-}" ]]; then
-      "$here/scripts/gradle.sh" -Pxiaoman.iosOnly=true :web-server:installDist
-    else
-      "$here/gradlew" -p "$here" -Pxiaoman.iosOnly=true :web-server:installDist
-    fi
+    echo "==> 构建 web-server（cargo）"
+    cargo build --release --manifest-path "$here/Cargo.toml" -p xiaoman-web
+    dist="$here/target/release/web-server-dist"
+    rm -rf "$dist"
+    mkdir -p "$dist/bin" "$dist/resources"
+    cp "$here/target/release/web-server" "$dist/bin/web-server"
+    cp -R "$here/crates/xiaoman-web/resources/web" "$dist/resources/web"
   fi
-  for candidate in "${XIAOMAN_BUILD_DIR:-/nonexistent}/web-server/install/web-server" "$here/web-server/build/install/web-server"; do
-    [[ -x "$candidate/bin/web-server" ]] && { dist="$candidate"; break; }
-  done
-  if [[ -z "$dist" && -n "${XIAOMAN_TOOLCHAIN:-}" ]]; then
-    key="$(printf '%s' "$here" | { sha1sum 2>/dev/null || shasum -a 1; } | cut -c1-12)"
-    candidate="$(dirname "$XIAOMAN_TOOLCHAIN")/builds/$key/out/web-server/install/web-server"
-    [[ -x "$candidate/bin/web-server" ]] && dist="$candidate"
-  fi
+  [[ -z "$dist" ]] && dist="$here/target/release/web-server-dist"
 fi
-[[ -n "$dist" && -x "$dist/bin/web-server" ]] || die "找不到 installDist 产物，请用 --dist 指定 .../install/web-server 目录"
+[[ -n "$dist" && -x "$dist/bin/web-server" ]] || die "找不到 web-server 产物，请用 --dist 指定包含 bin/web-server 的目录"
 echo "==> 产物：$dist"
 
 # 2. 确定网址。
@@ -195,16 +189,8 @@ say() { echo "[服务器] $*"; }
 have() { command -v "$1" >/dev/null 2>&1; }
 apt_ok() { have apt-get && [[ "$INSTALL_DEPS" == true ]]; }
 
-# Java 17+
-java_major() { java -version 2>&1 | sed -n 's/.*version "\([0-9]*\).*/\1/p' | head -1; }
-if ! have java || [[ "$(java_major)" -lt 17 ]]; then
-  if apt_ok; then say "安装 Java 17 运行时"; apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq openjdk-17-jre-headless
-  else
-    echo "缺少 Java 17 运行时。Ubuntu/Debian：sudo apt-get install -y openjdk-17-jre-headless；"
-    echo "CentOS/Alibaba Cloud Linux：sudo dnf install -y java-17-openjdk-headless。装好后重新运行，或加 --install-deps。"; exit 2
-  fi
-fi
-say "Java：$(java -version 2>&1 | head -1)"
+# The binary is self-contained (musl-free glibc build), so there is no runtime to install.
+tar -tzf web-server.tgz | grep -q '/bin/web-server$' || { echo "产物里缺少 bin/web-server"; exit 2; }
 
 # Caddy
 if ! have caddy; then
@@ -245,6 +231,8 @@ mkdir -p "$dest"
 tar -xzf web-server.tgz -C "$dest" --strip-components=1
 [[ -f skills.tar ]] && tar -xf skills.tar -C "$dest"
 chmod -R a+rX "$dest"
+[[ -x "$dest/bin/web-server" ]] || { echo "缺少 bin/web-server"; exit 2; }
+say "web-server：$("$dest/bin/web-server" --help | head -1)"
 
 # 访问码：新给的优先；否则沿用旧的；都没有就随机生成。
 env_file=/etc/xiaoman-web/env
@@ -293,7 +281,6 @@ XIAOMAN_TZ=$TZ_NAME
 TZ=$TZ_NAME
 # auto：PATH 里有 node 和 npx 时开启 12306；off：关闭
 XIAOMAN_STDIO_MCP=$stdio_mode
-JAVA_OPTS=-Xmx384m -XX:+UseSerialGC
 ENV
 if [[ -d "$dest/skills/examples" ]]; then
   { echo "# 聊天工作流：随版本发布的 skills/examples，只加载 channel: chat 的技能"; echo "XIAOMAN_WEB_SKILLS=/opt/xiaoman-web/current/skills/examples"; } >> "$env_file.new"

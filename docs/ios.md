@@ -20,7 +20,7 @@ Mac 负责决策并发出操作，WDA 在 iPhone 上执行。运行期间手机�
 - 完整的 Xcode，只有 Command Line Tools 不够。首次打开 Xcode，按提示完成组件安装与许可确认。
 - Apple ID，用于在 Xcode 签名 WDA。免费个人账号的签名通常 7 天过期，需要重新构建签名。脚本只提示你登录，不处理账号凭据。
 - 一部自己的 iPhone 和能传数据的 USB 数据线。手机解锁后选择「信任此电脑」。在「设置 → 隐私与安全性 → 开发者模式」开启开发者模式，按手机提示重启并确认；如果看不到该选项，先连接 Xcode。
-- JDK 17，确认终端的 `java -version` 使用它。
+- Rust 工具链（`cargo`；在 macOS 上用 rustup 安装）。Rust 版 runner 不再需要 JDK。
 - 方舟模型 API Key，或其他兼容 OpenAI 接口服务的 Key。准备聊天模型和支持图片输入的操作模型。
 
 | 手机 / Xcode | 至少需要 |
@@ -145,11 +145,11 @@ export ARK_API_KEY
 
 ### 6. 检查 runner 并跑一个只读任务
 
-先在仓库根目录构建 runner（需要 JDK 17，第一次构建要联网下载依赖；`-Pxiaoman.iosOnly=true` 跳过 Android 模块，Mac 上不用装 Android SDK），并把它加到 PATH：
+先在仓库根目录构建 runner（Rust，第一次构建要联网下载依赖），并把它加到 PATH：
 
 ```bash
-./gradlew -Pxiaoman.iosOnly=true :ios-runner:installDist
-export PATH="$PWD/ios-runner/build/install/ios-runner/bin:$PATH"
+cargo build --release -p xiaoman-ios --bin ios-runner
+export PATH="$PWD/target/release:$PATH"
 ```
 
 然后检查连接，再跑一个只读任务：

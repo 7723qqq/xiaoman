@@ -10,7 +10,7 @@ iPhone Safari ──HTTPS 443──> Caddy（自动证书） ──http 127.0.0.
 
 | 文件 | 作用 |
 |---|---|
-| `install.sh` | 在你自己的电脑上运行：构建、上传、安装 Java/Caddy（可选）、写配置、启动、健康检查 |
+| `install.sh` | 在你自己的电脑上运行：构建、上传、按需安装 Caddy/Node、写配置、启动、健康检查 |
 | `rollback.sh` | 切回上一个版本，或列出、切换到指定版本 |
 | `xiaoman-web.service` | systemd 服务，web-server 只监听 127.0.0.1 |
 | `Caddyfile.template` | Caddy 反向代理模板，`__SITE__`、`__PORT__` 由脚本替换 |
@@ -23,7 +23,7 @@ iPhone Safari ──HTTPS 443──> Caddy（自动证书） ──http 127.0.0.
 - 网址二选一：
   - 自有域名：把 A 记录指向服务器公网 IP，例如 `xiaoman.example.com`。
   - 没有域名：用 `<公网IP>.sslip.io`，例如 `203.0.113.10.sslip.io`，sslip.io 会把它解析回这个 IP，Caddy 照样能申请证书。
-- 本机能构建：仓库根目录有 `./gradlew`，需要 JDK 17；只构建网页版，不需要 Android SDK。
+- 本机能构建：仓库根目录有 Rust 工具链（`cargo`）；只构建网页版，不需要 JDK 或 Android SDK。
 
 ## 一键安装
 
@@ -40,11 +40,11 @@ deploy/install.sh ubuntu@203.0.113.10 --sslip --access-code camp2-xiaoman --time
 
 脚本做的事：
 
-1. 本机构建 `:web-server:installDist`（`-Pxiaoman.iosOnly=true`）。已有产物可用 `--dist DIR --skip-build`。
+1. 本机 `cargo build --release -p xiaoman-web`，产物在 `target/release/web-server`（连同 `resources/web` 一起打包）。已有产物可用 `--dist DIR --skip-build`。
 2. 打包上传到服务器临时目录，用 sudo 执行服务器端步骤。
-3. 检查 Java 17：缺了就提示安装命令；加 `--install-deps` 时用 apt 安装 `openjdk-17-jre-headless`。Caddy 同理（官方 apt 源）。
+3. 二进制是自包含的，不需要 Java 运行时；Caddy 缺失时提示安装，加 `--install-deps` 时用 apt 安装（官方 apt 源）。
 4. 新建系统用户 `xiaoman`，版本放到 `/opt/xiaoman-web/releases/<时间>`，`/opt/xiaoman-web/current` 指向当前版本。
-5. 写 `/etc/xiaoman-web/env`（权限 0640，只有 root 和服务能读）：访问码、端口、时区、12306 开关、JVM 内存。
+5. 写 `/etc/xiaoman-web/env`（权限 0640，只有 root 和服务能读）：访问码、端口、时区、12306 开关。
 6. 安装并启动 systemd 服务 `xiaoman-web`，写入 `/etc/caddy/Caddyfile`（旧文件备份为 `Caddyfile.bak.<时间>`），重载 Caddy。
 7. 健康检查：服务器本机 `http://127.0.0.1:8787/api/info`，再从你的电脑访问 `https://<网址>/api/info`（第一次申请证书可能要几十秒）。
 

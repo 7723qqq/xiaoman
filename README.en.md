@@ -56,6 +56,33 @@ python3 cli/xiaoman.py run "打开设置里的 Wi-Fi 页面" --skill open-settin
 python3 cli/xiaoman.py traces show <run_id>
 ```
 
+## Rust port
+
+The same product is being ported to Rust under `crates/`; the Kotlin tree stays as the reference
+implementation.
+
+- `xiaoman-api`, `llm`, `memory`, `skills`, `sentinel`, `agent`, `mcp`: the core domain, ported
+  behaviour for behaviour; the golden files under `fixtures/` are run by both the Kotlin and the
+  Rust tests and compared byte for byte.
+- `xiaoman-android` plus `crates/xiaoman-android/android`: the Compose fallback host. Rust owns the
+  accessibility device, the session and the JNI seam; Kotlin keeps the accessibility service, the
+  foreground service, notifications, AlarmManager reminders and the Compose screens.
+- `crates/xiaoman-gpui`: the GPUI Android front-end and a workspace member: the five screens are
+  Rust; Kotlin keeps only the services, notifications and JNI shell. CI builds its APK next to the
+  Compose fallback.
+- `xiaoman-app` + `xiaoman-ui`: the headless session and the desktop (GPUI) app.
+- `xiaoman-web`: the web server, including the `--local` classroom mode, the `/connect` QR page and
+  the global `--max-stdio` cap on stdio MCP child processes.
+- `xiaoman-ios`: the WDA device and Mac runner, with MCP tools offered to the chat model.
+- `xiaoman-cli`: the Rust skill developer CLI, matching `cli/`'s Python one.
+
+```bash
+cargo test --workspace
+cargo run -p xiaoman-ui
+cargo run -p xiaoman-web --bin web-server -- --local
+./gradlew -p crates/xiaoman-android/android assembleDebug
+```
+
 ## Layout
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): `core-*` are plain Kotlin/JVM modules (contracts,

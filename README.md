@@ -73,6 +73,27 @@ python3 cli/xiaoman.py run "打开设置里的 Wi-Fi 页面" --skill open-settin
 python3 cli/xiaoman.py traces show <run_id>
 ```
 
+## Rust 版
+
+同一个产品正在移植到 Rust（`crates/`），Kotlin 版保留为参考实现。当前状态：
+
+- `xiaoman-api` / `llm` / `memory` / `skills` / `sentinel` / `agent` / `mcp`：核心域完整移植，行为与 Kotlin 版逐条对应；`fixtures/` 下的 golden 用例由 Kotlin 与 Rust 测试各跑一遍，逐字节比较。
+- `xiaoman-android` + `crates/xiaoman-gpui`：Android 正式前端。无障碍设备层、Session、JNI 和五页 GPUI 界面（聊天、技能、服务、记忆、设置）都在 Rust；Kotlin 只保留无障碍服务、前台服务、通知、AlarmManager 提醒和 JNI 壳。`crates/xiaoman-android/android` 的 Compose 宿主保留为回退。`xiaoman-gpui` 是根 workspace 成员，CI 同时构建两个 APK。
+- `xiaoman-app` + `xiaoman-ui`：无头会话与桌面端（GPUI）。
+- `xiaoman-web`：网页版，含 `--local` 课堂模式、端口回退、随机访问码和 `/connect` 扫码页；`--max-stdio` 是全局 stdio 子进程上限。
+- `xiaoman-ios`：WDA 设备与 Mac 命令行，MCP 工具已接入聊天模型。
+- `xiaoman-cli`：Rust 版技能开发 CLI，对应 `cli/` 的 Python 版。
+
+```bash
+cargo test --workspace                                   # 含桌面 UI 与 GPUI；GPUI 在桌面平台编译
+cargo run -p xiaoman-ui                                  # 桌面版
+cargo run -p xiaoman-web --bin web-server -- --local     # 网页版（课堂模式）
+./gradlew -p crates/xiaoman-gpui/android assembleDebug   # Android GPUI APK
+./gradlew -p crates/xiaoman-android/android assembleDebug # Compose 回退 APK
+```
+
+Android 宿主的数据目录是 `/sdcard/Android/data/dev.xiaoman.host/files`，Rust 版 `xiaoman` CLI 默认指向它；调试桥为 `dev.xiaoman.debug.RUN/STOP/RELOAD_SKILLS/SAY`。
+
 ## 目录结构
 
 ```
@@ -88,6 +109,7 @@ xiaoman/
 ├── core-mcp/              # MCP 客户端，把外部服务的工具交给聊天模型（见 docs/mcp.md）
 ├── mcp/                   # MCP 服务器示例清单 servers.example.json
 ├── web-server/            # 网页版：服务端 + 移动端网页（见 docs/web.md）
+├── crates/          # Rust 移植：api/llm/memory/skills/sentinel/agent/mcp/android/app/ui/web/ios/cli
 ├── app/             # Android App：聊天、技能、记忆、设置界面
 ├── cli/             # 技能开发者 CLI
 ├── skills/examples/ # 示例技能，也会打包进 APK

@@ -47,7 +47,7 @@ iPhone 不允许一个 App 操作其他 App，没有付费开发者账号也发�
 
 ## 部署
 
-服务端是 `web-server` 模块，一个 Java 17 程序，网页文件已经打包在里面。上云服务器用 [deploy/](../deploy/README.md) 里的一键脚本：Caddy 自动 HTTPS（自有域名或 `<IP>.sslip.io`）、systemd 服务、访问码和时区、更新与回滚。
+服务端是 `xiaoman-web` crate 的 `web-server` 二进制，网页文件已经打包在里面（源码在 `crates/xiaoman-web/`）。上云服务器用 [deploy/](../deploy/README.md) 里的一键脚本：Caddy 自动 HTTPS（自有域名或 `<IP>.sslip.io`）、systemd 服务、访问码和时区、更新与回滚。
 
 ```bash
 deploy/install.sh ubuntu@203.0.113.10 --sslip --install-deps        # 没有域名
@@ -57,15 +57,15 @@ deploy/install.sh ubuntu@203.0.113.10 --domain xiaoman.example.com  # 自有域�
 手动运行：
 
 ```bash
-./gradlew -Pxiaoman.iosOnly=true :web-server:installDist
-XIAOMAN_WEB_ACCESS_CODE=课堂口令 web-server/build/install/web-server/bin/web-server --host 127.0.0.1 --port 8787
+cargo build --release -p xiaoman-web --bin web-server
+XIAOMAN_WEB_ACCESS_CODE=课堂口令 ./target/release/web-server --host 127.0.0.1 --port 8787
 ```
 
 - 必须放在 HTTPS 后面（Caddy、Nginx 或云平台的 HTTPS 入口），web-server 本身只监听本机。iPhone 添加到主屏幕和浏览器保存数据都依赖 HTTPS。
 - 访问码：`XIAOMAN_WEB_ACCESS_CODE` 或 `--access-code`，学员第一次打开时输入；不设置则任何人拿到链接都能用你的服务器转发请求。
 - 服务器不会访问内网地址：模型地址和 MCP 地址解析到 10.x、192.168.x、127.0.0.1、169.254.x 等都会被拒绝。`--allow-private` 只用于本机测试。
 - 写操作确认、Key 只存浏览器、日志只记接口名和状态码，这些都不需要额外配置。
-- 其他参数：`--timezone Asia/Shanghai`（提醒时间换算）、`--session-hours 2`（会话空闲多久清空）、`--stdio-mcp auto|on|off`、`--max-stdio 20`。`web-server --help` 查看全部。
+- 其他参数：`--timezone Asia/Shanghai`（提醒时间换算）、`--session-hours 2`（会话空闲多久清空）、`--stdio-mcp auto|on|off`、`--max-stdio 20`（同时在跑的 stdio MCP 子进程上限，默认 20）、`--local`（课堂模式，自动选端口、生成访问码并打开 `/connect` 扫码页）。`web-server --help` 查看全部。
 
 ## 12306 火车票（需要 Node.js）
 
@@ -83,5 +83,5 @@ XIAOMAN_WEB_ACCESS_CODE=课堂口令 web-server/build/install/web-server/bin/web
 ## 测试
 
 ```bash
-./gradlew -Pxiaoman.iosOnly=true :web-server:test :web-server:jsTest   # Kotlin 接口测试 + 网页 JS 测试（需要 Node.js）
+cargo test -p xiaoman-web          # 接口、课堂令牌、领取、SSE 与静态页
 ```

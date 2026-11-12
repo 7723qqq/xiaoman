@@ -16,5 +16,4 @@ cd /
 if command -v runuser >/dev/null 2>&1; then run() { runuser -u xiaoman -- "$@"; }; else run() { sudo -u xiaoman -- "$@"; }; fi
 run env -i PATH=/usr/local/bin:/usr/bin:/bin LANG=C.UTF-8 \
   XIAOMAN_CLASS_TOKENS="${tokens:-/var/lib/xiaoman-web/class-tokens.json}" XIAOMAN_TZ="${tz:-Asia/Shanghai}" \
-  JAVA_OPTS="-Xmx128m -XX:+UseSerialGC -Dfile.encoding=UTF-8" \
   /opt/xiaoman-web/current/bin/web-server tokens "$@"

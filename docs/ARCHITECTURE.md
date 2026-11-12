@@ -155,3 +155,45 @@ App 注册了 `dev.xiaoman.app.debug.DebugReceiver`（只在 debug 清单中导�
 ## 构建
 
 `scripts/gradle.sh <tasks>` 会把构建产物放到仓库目录之外。需要 JDK 17 和 Android SDK 35。
+
+## Rust 实现（移植）
+
+`crates/` 是同一架构的 Rust 实现，Kotlin 版本保留为参考实现。模块对应关系：
+
+| Kotlin | Rust | 说明 |
+|---|---|---|
+| `core-api` | `xiaoman-api` | 接口与数据结构；`Action` 序列化和 `ScreenState.fingerprint` 与 Kotlin 字节兼容 |
+| `core-llm` | `xiaoman-llm` | OpenAI 兼容客户端：重试、JSON 模式回退、图片、工具调用 |
+| `core-memory` | `xiaoman-memory` | Basic Memory 格式、中文检索、permalink |
+| `core-skills` | `xiaoman-skills` | `SKILL.md` / `flow.yaml` 解析与仓库 |
+| `core-sentinel` | `xiaoman-sentinel` | 允许 / 询问 / 拒绝、任务级授权、审计 |
+| `core-agent` | `xiaoman-agent` | `XiaomanAgent`：聊天、操作循环、技能流程、经验笔记 |
+| `core-mcp` | `xiaoman-mcp` | MCP 客户端、目录、确认策略与脱敏 |
+| `hands` | `xiaoman-android` | `Device`、节点压缩、截图、手势、JNI 桥；`src/session.rs` 是 Session 的应用级 JNI |
+| `app` | `xiaoman-app` + `xiaoman-ui` | 无头会话 / 设置 / 轨迹；桌面 GPUI 五页界面 |
+| `app`（Android 前端） | `crates/xiaoman-gpui` + `crates/xiaoman-android` | 五页 GPUI 界面；根 workspace 成员，CI 与 Compose 回退各出一个 APK。Kotlin 只保留无障碍服务、前台服务、通知、AlarmManager 提醒、Debug 广播桥。`crates/xiaoman-android/android` 的 Compose 宿主是回退 |
+| `web-server` | `xiaoman-web` | 网页版 HTTP/SSE、课堂令牌、自助领取、`--local` 与 `/connect` 扫码页 |
+| `ios-hands`、`ios-runner` | `xiaoman-ios` | WDA 设备、Mac 命令行、MCP 工具与提醒 |
+| `cli/` | `xiaoman-cli` | 校验、推送、运行、日志、轨迹 |
+
+入口：`cargo run -p xiaoman-ui`（桌面）、`cargo run -p xiaoman-web --bin web-server -- --local`（网页版）、
+`cargo run -p xiaoman-cli -- run "目标"`（开发者 CLI）、`ios-runner`（Mac）、
+`./gradlew -p crates/xiaoman-gpui/android assembleDebug`（Android GPUI APK；Compose 回退用 `crates/xiaoman-android/android`）。
+
+Android 宿主的数据目录是 `/sdcard/Android/data/dev.xiaoman.host/files`；调试桥 action 与 Kotlin 版相同
+（`dev.xiaoman.debug.RUN/STOP/RELOAD_SKILLS/SAY`），接收器为 `dev.xiaoman.host/dev.xiaoman.app.DebugReceiver`。
+
+### 一致性怎么保证（golden fixtures）
+
+`fixtures/` 下的用例由 Kotlin 测试和 Rust 测试各跑一遍，结果逐字节比较：
+
+- `fixtures/action/*.in.json` / `.out.json`：`Action` 的线格式。Kotlin `ActionGoldenTest` 与
+  Rust `action_json.rs` 都断言“解码后再编码”等于 `.out.json`。
+- `fixtures/memory/*.input.md` / `.rendered.md`：Basic Memory frontmatter 与正文的渲染。Kotlin
+  `GoldenTest` 与 Rust `golden.rs` 都对同一份输入断言逐字节相等；两侧使用同一套标量引用规则
+  （含 `: `、`#`、数字样字符串和首尾空白）。
+- `ScreenState::fingerprint` 在 `core-api` 与 `xiaoman-api` 的测试里钉死同一个常量
+  `-22de5649`（Java `hashCode` 为 `-584996425`），并覆盖 `Int.MIN_VALUE` 的十六进制输出。
+
+审批身份是端到端的：`Session::answer_approval` 要求 approval id，桌面卡片、GPUI 卡片和通知栏
+都传 id，过期卡片或通知不会回答新审批（`a_stale_approval_id_cannot_answer_the_current_card`）。
