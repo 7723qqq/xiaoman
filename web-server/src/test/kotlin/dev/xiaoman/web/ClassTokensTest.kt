@@ -41,9 +41,12 @@ class ClassTokensTest {
         assertEquals(1000, first.dailyLimit); assertEquals(5000, first.totalLimit)
         assertEquals(now.get() + 3 * 86_400_000L, first.expiresAt)
         assertNull(store.find("xm-" + "a".repeat(20)))
-        // Numbering continues after existing labels; the file mode is 0640.
+        // Numbering continues after existing labels; the file mode is 0640 on filesystems that
+        // have POSIX modes (Windows has none, and the writer skips the mode there).
         assertEquals(listOf("学员 04", "学员 05"), generated(admin(file, "generate", "2")).map { it.first })
-        assertEquals("rw-r-----", java.nio.file.attribute.PosixFilePermissions.toString(Files.getPosixFilePermissions(file)))
+        if (Files.getFileStore(file).supportsFileAttributeView("posix")) {
+            assertEquals("rw-r-----", java.nio.file.attribute.PosixFilePermissions.toString(Files.getPosixFilePermissions(file)))
+        }
         assertTrue("学员 05" in admin(file, "list").out)
     }
 

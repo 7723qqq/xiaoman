@@ -3,11 +3,8 @@ package dev.xiaoman.memory
 import dev.xiaoman.api.Note
 import dev.xiaoman.api.Observation
 import dev.xiaoman.api.Relation
-import org.snakeyaml.engine.v2.api.Dump
-import org.snakeyaml.engine.v2.api.DumpSettings
 import org.snakeyaml.engine.v2.api.Load
 import org.snakeyaml.engine.v2.api.LoadSettings
-import org.snakeyaml.engine.v2.common.FlowStyle
 
 /**
  * Reads and writes notes in the Basic Memory Markdown format (see [Note]).
@@ -30,11 +27,6 @@ object BasicMemoryFormat {
     private val SECTION_END = Regex("""^#{1,2}\s.*""")
 
     private val load = Load(LoadSettings.builder().build())
-    private val blockDump = Dump(dumpSettings(FlowStyle.BLOCK))
-    private val flowDump = Dump(dumpSettings(FlowStyle.FLOW))
-
-    private fun dumpSettings(style: FlowStyle) =
-        DumpSettings.builder().setDefaultFlowStyle(style).setWidth(4096).setSplitLines(false).build()
 
     /** Parses a note file; [permalink] is the file's path key and [mtime] becomes [Note.updatedAtMillis]. */
     fun parse(text: String, permalink: String, mtime: Long): Note {
@@ -181,13 +173,77 @@ object BasicMemoryFormat {
     }
 
     private fun renderFrontmatter(note: Note): String = buildString {
-        append(blockDump.dumpToString(mapOf("title" to note.title)))
-        append(blockDump.dumpToString(mapOf("type" to note.type.ifBlank { "note" })))
-        append(blockDump.dumpToString(mapOf("permalink" to note.permalink)))
-        append("tags: ").append(flowDump.dumpToString(note.tags).trim()).append('\n')
-        val extras = LinkedHashMap<String, Any?>()
-        note.extraFrontmatter.forEach { (key, value) -> if (key !in RESERVED) extras[key] = yamlSafe(value) }
-        if (extras.isNotEmpty()) append(blockDump.dumpToString(extras))
+        append("title: ").append(yamlScalar(note.title)).append('\n')
+        append("type: ").append(yamlScalar(note.type.ifBlank { "note" })).append('\n')
+        append("permalink: ").append(yamlScalar(note.permalink)).append('\n')
+        append("tags: [").append(note.tags.joinToString(", ") { yamlScalar(it) }).append("]\n")
+        note.extraFrontmatter.forEach { (key, value) ->
+            if (key !in RESERVED) append(yamlEntry(key, yamlSafe(value), 0))
+        }
+    }
+
+    /**
+     * One frontmatter entry, block style for maps and flow style for everything else. This writer
+     * and the Rust `yaml_entry` are one contract: `fixtures/memory/` pins their byte equality.
+     */
+    private fun yamlEntry(key: String, value: Any?, indent: Int): String {
+        val pad = " ".repeat(indent)
+        return if (value is Map<*, *> && value.isNotEmpty()) {
+            buildString {
+                append(pad).append(yamlScalar(key)).append(":\n")
+                value.forEach { (nestedKey, nestedValue) ->
+                    append(yamlEntry(nestedKey.toString(), yamlSafe(nestedValue), indent + 2))
+                }
+            }
+        } else {
+            pad + yamlScalar(key) + ": " + yamlFlow(value) + "\n"
+        }
+    }
+
+    private fun yamlFlow(value: Any?): String = when (value) {
+        null -> "null"
+        is Boolean -> value.toString()
+        is Byte, is Short, is Int, is Long, is java.math.BigInteger -> value.toString()
+        is Float -> value.toDouble().toString()
+        is Double -> value.toString()
+        is java.math.BigDecimal -> value.toPlainString()
+        is Map<*, *> -> value.entries.joinToString(", ", "{", "}") {
+            yamlScalar(it.key.toString()) + ": " + yamlFlow(yamlSafe(it.value))
+        }
+        is Iterable<*> -> value.joinToString(", ", "[", "]") { yamlFlow(yamlSafe(it)) }
+        is Array<*> -> value.joinToString(", ", "[", "]") { yamlFlow(yamlSafe(it)) }
+        else -> yamlScalar(value.toString())
+    }
+
+    private val YAML_KEYWORDS = setOf("true", "false", "null", "yes", "no", "on", "off", "~", "nan", "inf", "infinity")
+    private val UNSAFE_START = " \t-?:,[]{}#&*!|>'\"%@`".toSet()
+
+    /** The same quoting rules as the Rust `yaml_scalar`; the golden fixtures cover both sides. */
+    private fun yamlScalar(text: String): String {
+        val needsQuotes = text.isEmpty() ||
+            text.trim() != text ||
+            text.first() in UNSAFE_START ||
+            text.contains(": ") ||
+            text.contains(" #") ||
+            text.any { it == '\n' || it == '\r' || it == '\t' } ||
+            text.lowercase() in YAML_KEYWORDS ||
+            text.toDoubleOrNull() != null ||
+            text.toLongOrNull() != null
+        if (!needsQuotes) return text
+        val escaped = buildString {
+            text.forEach { c ->
+                when {
+                    c == '\\' -> append("\\\\")
+                    c == '"' -> append("\\\"")
+                    c == '\n' -> append("\\n")
+                    c == '\r' -> append("\\r")
+                    c == '\t' -> append("\\t")
+                    c < ' ' -> append("\\u%04x".format(c.code))
+                    else -> append(c)
+                }
+            }
+        }
+        return "\"$escaped\""
     }
 
     /** Converts values snakeyaml cannot represent to plain maps, lists and strings. */

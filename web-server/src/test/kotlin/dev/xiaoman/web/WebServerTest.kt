@@ -491,8 +491,8 @@ class WebServerTest {
         val dir = Files.createTempDirectory("xiaoman-path")
         try {
             listOf("node", "npx").forEach { Files.createFile(dir.resolve(it)).toFile().setExecutable(true) }
-            assertTrue(StdioMcp.commandsOnPath(dir.toString()))
-            assertFalse(StdioMcp.commandsOnPath(dir.toString(), listOf("node", "missing")))
+            assertTrue(StdioMcp.commandsOnPath(dir.toString(), windows = false, pathExt = ""))
+            assertFalse(StdioMcp.commandsOnPath(dir.toString(), listOf("node", "missing"), windows = false, pathExt = ""))
             assertFalse(StdioMcp.commandsOnPath(""))
             assertFalse(StdioMcp.commandsOnPath(dir.toString(), windows = true, pathExt = ".EXE;.CMD"))
             listOf("node.exe", "npx.cmd").forEach { Files.createFile(dir.resolve(it)).toFile().setExecutable(true) }
