@@ -8,7 +8,8 @@ use std::time::Duration;
 
 use gpui::{
     div, prelude::*, px, rgb, AnyElement, Context, Entity, FontWeight, HighlightStyle, Hsla,
-    IntoElement, ParentElement, Render, ScrollHandle, Styled, StyledText, Task, TextStyle, Window,
+    IntoElement, MouseButton, ParentElement, Render, ScrollHandle, Styled, StyledText, Task,
+    TextStyle, Window,
 };
 use gpui_kit::component::button::Button;
 use gpui_kit::component::input::{InputEvent, Textarea, TextareaState};
@@ -636,7 +637,14 @@ impl Render for ChatView {
                             .flex()
                             .items_center()
                             .gap_2()
-                            .child(Textarea::new(&self.input).flex_1())
+                            .child(
+                                div()
+                                    .flex_1()
+                                    // A second tap after the IME was dismissed must re-open it:
+                                    // the field is still focused, so no Focus event fires again.
+                                    .on_mouse_down(MouseButton::Left, |_, _, _| show_keyboard())
+                                    .child(Textarea::new(&self.input)),
+                            )
                             // One button, like the Compose input row: send unless a task runs.
                             .child(if stopping {
                                 Button::new("send-stop")

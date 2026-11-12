@@ -7,6 +7,7 @@ import android.text.Editable;
 import android.text.InputType;
 import android.text.Selection;
 import android.text.TextWatcher;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.ViewGroup;
 import android.view.inputmethod.BaseInputConnection;
@@ -51,10 +52,21 @@ public class GpuiInputActivity extends NativeActivity {
             }
             input.setInputType(type);
             input.setImeOptions(EditorInfo.IME_FLAG_NO_EXTRACT_UI);
+            // An EditText only takes focus in touch mode when it is focusable both ways. The
+            // first tap also arrives before this 1x1 view has been laid out, so the IME request
+            // waits for the next UI loop instead of failing silently.
+            input.setFocusable(true);
+            input.setFocusableInTouchMode(true);
+            input.setShowSoftInputOnFocus(true);
             input.requestFocus();
-            InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
-            imm.restartInput(input);
-            imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT);
+            final InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+            input.post(() -> {
+                imm.restartInput(input);
+                if (!imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)) {
+                    Log.w("XiaomanIme", "showSoftInput returned false; retrying after layout");
+                    input.postDelayed(() -> imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT), 100);
+                }
+            });
         });
     }
 
