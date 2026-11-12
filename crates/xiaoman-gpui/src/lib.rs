@@ -79,7 +79,10 @@ pub fn android_main(app: android_activity::AndroidApp) {
         log::info!("Application::run: opening the chat window");
         let session = session.clone();
         let opened = cx.open_window(WindowOptions::default(), move |window, cx| {
-            cx.new(move |cx| RootView::new(session, window, cx))
+            let view = cx.new(|cx| RootView::new(session, window, cx));
+            // The component library hosts the touch-selection handles and the long-press
+            // copy/paste menu in `Root`; without it those overlays have nowhere to render.
+            cx.new(|cx| gpui_kit::component::Root::new(view, window, cx).bordered(false))
         });
         if let Err(error) = opened {
             log::error!("open_window failed: {error}");
