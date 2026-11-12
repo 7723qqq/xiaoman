@@ -28,3 +28,92 @@ jobs:
         with:
           name: xiaoman-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: 格式门禁
+        run: cargo fmt --all --check
+
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      # `xiaoman-ui` and `xiaoman-gpui` need GPUI's desktop stack (X11/Wayland/fontconfig on
+      # Linux); the `gpui` job below builds, tests and lints them on a Windows runner. Everything
+      # that runs headless is covered here.
+      - name: 核心、Web、CLI、iOS runner 测试
+        run: cargo test --workspace --exclude xiaoman-ui --exclude xiaoman-gpui --no-fail-fast
+      - name: Clippy 门禁
+        run: cargo clippy --workspace --exclude xiaoman-ui --exclude xiaoman-gpui --all-targets -- -D warnings
+      - name: 网页静态资源与 Kotlin 版逐字节一致
+        run: diff -r web-server/src/main/resources crates/xiaoman-web/resources
+
+  gpui:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: 桌面 UI 与 Android GPUI 前端的测试
+        run: cargo test -p xiaoman-ui -p xiaoman-gpui --no-fail-fast
+      - name: 桌面 UI 与 Android GPUI 前端的 Clippy 门禁
+        run: cargo clippy -p xiaoman-ui -p xiaoman-gpui --all-targets -- -D warnings
+
+  android-host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,x86_64-linux-android
+      - uses: Swatinem/rust-cache@v2
+      - name: 安装 NDK
+        run: sdkmanager "ndk;27.2.12479018"
+      - name: 构建 Rust Android 宿主 APK（Compose 回退）
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.2.12479018
+        run: ./gradlew -p crates/xiaoman-android/android assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xiaoman-compose-fallback-apk
+          path: crates/xiaoman-android/android/build/outputs/apk/debug/*.apk
+
+  android-gpui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+      - name: 安装 NDK
+        run: sdkmanager "ndk;27.2.12479018"
+      - name: 构建 GPUI Android 前端 APK
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.2.12479018
+        run: ./gradlew -p crates/xiaoman-gpui/android assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xiaoman-gpui-apk
+          path: crates/xiaoman-gpui/android/app/build/outputs/apk/debug/*.apk
