@@ -133,6 +133,11 @@ android {
         // `skills/examples` ships as `assets/skills/...`; HostApplication extracts it on first run.
         assets.srcDir(layout.buildDirectory.dir("generated/bundledSkills"))
     }
+    sourceSets.getByName("debug") {
+        // The `xiaoman` CLI's bridge and the smoke receiver are exported `adb` entry points, so they
+        // live in the debug source set and never reach a release APK.
+        kotlin.srcDir("src/debug/kotlin")
+    }
 }
 
 kotlin { jvmToolchain(17) }

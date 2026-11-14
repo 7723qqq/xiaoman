@@ -9,10 +9,20 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const HOSTS: [(&str, &str); 1] = [(
-    "gpui",
-    "../xiaoman-gpui/android/app/src/main/kotlin/dev/xiaoman",
-)];
+/// Kotlin roots of the host, relative to this crate. `required` roots must exist; the debug source
+/// set is optional, because only the `adb` bridge lives there.
+const HOST_ROOTS: [(&str, &str, bool); 2] = [
+    (
+        "gpui",
+        "../xiaoman-gpui/android/app/src/main/kotlin/dev/xiaoman",
+        true,
+    ),
+    (
+        "gpui/debug",
+        "../xiaoman-gpui/android/app/src/debug/kotlin/dev/xiaoman",
+        false,
+    ),
+];
 
 /// `(relative path under the host, package, class)` — the four classes that declare natives.
 const NATIVE_CLASSES: [(&str, &str, &str); 4] = [
@@ -157,10 +167,16 @@ fn every_kotlin_native_matches_its_export() {
     .collect();
 
     let mut checked = 0usize;
-    for (host, root) in HOSTS {
+    for (host, root, required) in HOST_ROOTS {
         for (relative, package, class) in NATIVE_CLASSES {
             let path = crate_dir().join(root).join(relative);
+            if !required && !path.exists() {
+                continue;
+            }
             let natives = kotlin_natives(&path);
+            if !required && natives.is_empty() {
+                continue;
+            }
             assert!(!natives.is_empty(), "{host}/{relative}: no external fun");
             for (name, kotlin_types) in natives {
                 let symbol = format!("Java_{}_{}_{}", package.replace('.', "_"), class, name);
@@ -229,15 +245,14 @@ fn the_host_implements_the_notifier_contract() {
         methods.len()
     );
 
-    for (host, root) in HOSTS {
-        let path = crate_dir().join(root).join("app/NotifierBridge.kt");
-        let text = fs::read_to_string(&path)
-            .unwrap_or_else(|error| panic!("{host}: {}: {error}", path.display()));
-        for method in &methods {
-            assert!(
-                text.contains(&format!("fun {method}(")),
-                "{host}: NotifierBridge has no `fun {method}(`, but Rust calls it"
-            );
-        }
+    let (host, root, _) = HOST_ROOTS[0];
+    let path = crate_dir().join(root).join("app/NotifierBridge.kt");
+    let text = fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("{host}: {}: {error}", path.display()));
+    for method in &methods {
+        assert!(
+            text.contains(&format!("fun {method}(")),
+            "{host}: NotifierBridge has no `fun {method}(`, but Rust calls it"
+        );
     }
 }

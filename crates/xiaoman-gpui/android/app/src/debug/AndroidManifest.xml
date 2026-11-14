@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-only components. They are declared here and not in the main manifest so a release APK has
+  no broadcast entry point: both receivers are exported and unpermissioned, and between them they
+  can drive the accessibility service, inject chat text and read back a scripted run.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- Debug bridge for the `xiaoman` CLI (RUN / STOP / RELOAD_SKILLS / SAY). -->
+        <receiver
+            android:name=".debug.DebugReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="dev.xiaoman.debug.RUN" />
+                <action android:name="dev.xiaoman.debug.STOP" />
+                <action android:name="dev.xiaoman.debug.RELOAD_SKILLS" />
+                <action android:name="dev.xiaoman.debug.SAY" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Scripted see-and-touch run: adb shell am broadcast -n dev.xiaoman.app/.SmokeReceiver -a dev.xiaoman.smoke. -->
+        <receiver
+            android:name="dev.xiaoman.app.SmokeReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="dev.xiaoman.smoke" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

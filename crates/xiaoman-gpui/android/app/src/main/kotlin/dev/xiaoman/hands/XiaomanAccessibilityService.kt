@@ -5,7 +5,6 @@ import android.accessibilityservice.GestureDescription
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Path
@@ -25,9 +24,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction
 import android.view.accessibility.AccessibilityWindowInfo
-import androidx.core.content.ContextCompat
 import dev.xiaoman.app.NotifierBridge
-import dev.xiaoman.app.SmokeReceiver
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
@@ -107,16 +104,12 @@ class XiaomanAccessibilityService : AccessibilityService() {
     private val shotLock = Any()
     private var lastShotAtMs = 0L
 
-    /** The debug trigger registered at runtime; see [registerSmokeTrigger]. */
-    private var smokeReceiver: SmokeReceiver? = null
-
     // ------------------------------------------------------------------ lifecycle
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         connected = true
         callback("nativeOnServiceConnected") { nativeOnServiceConnected() }
-        registerSmokeTrigger()
         // The pill can only be added from the connected service; a task may already be running.
         OverlayHost.service = this
         NotifierBridge.onAccessibilityConnected()
@@ -168,7 +161,6 @@ class XiaomanAccessibilityService : AccessibilityService() {
     private fun disconnect() {
         if (!connected) return
         connected = false
-        unregisterSmokeTrigger()
         releaseAll()
         // The pill's window dies with the service; the notifier recreates it on the next connect.
         OverlayHost.overlay?.hide()
@@ -176,37 +168,6 @@ class XiaomanAccessibilityService : AccessibilityService() {
         OverlayHost.service = null
         // Keep the last foreground app: Rust reports the device as disconnected until the next connect.
         callback("nativeOnServiceUnbound") { nativeOnServiceUnbound() }
-    }
-
-    /**
-     * Registers [SmokeReceiver] at runtime for `adb shell am broadcast -a dev.xiaoman.smoke`.
-     *
-     * A manifest receiver of an implicit broadcast is refused with "Background execution not
-     * allowed" unless the app is allowlisted, and the shell sends exactly such a broadcast. A
-     * registered receiver is exempt, and the run needs this service connected anyway, so the
-     * process is alive whenever the trigger can do anything. The manifest entry stays for explicit
-     * sends (`am broadcast -n dev.xiaoman.app/.SmokeReceiver`).
-     */
-    private fun registerSmokeTrigger() {
-        if (smokeReceiver != null) return
-        val receiver = SmokeReceiver()
-        try {
-            ContextCompat.registerReceiver(
-                this,
-                receiver,
-                IntentFilter(SmokeReceiver.ACTION),
-                ContextCompat.RECEIVER_EXPORTED,
-            )
-            smokeReceiver = receiver
-        } catch (e: RuntimeException) {
-            Log.w(TAG, "cannot register the smoke trigger", e)
-        }
-    }
-
-    private fun unregisterSmokeTrigger() {
-        val receiver = smokeReceiver ?: return
-        smokeReceiver = null
-        runCatching { unregisterReceiver(receiver) }
     }
 
     // ------------------------------------------------------------------ SERVICE_METHODS

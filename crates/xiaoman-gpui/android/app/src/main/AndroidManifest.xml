@@ -86,18 +86,6 @@
                 android:value="On-device personal agent that operates other apps through an accessibility service while the user waits for a task to finish; the user can stop it from the notification." />
         </service>
 
-        <!-- Debug build bridge for the `xiaoman` CLI (RUN / STOP / RELOAD_SKILLS / SAY). -->
-        <receiver
-            android:name=".debug.DebugReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="dev.xiaoman.debug.RUN" />
-                <action android:name="dev.xiaoman.debug.STOP" />
-                <action android:name="dev.xiaoman.debug.RELOAD_SKILLS" />
-                <action android:name="dev.xiaoman.debug.SAY" />
-            </intent-filter>
-        </receiver>
-
         <!-- AlarmManager reminder and the notification card's own actions. -->
         <receiver
             android:name="dev.xiaoman.app.ReminderReceiver"
@@ -106,13 +94,10 @@
             android:name="dev.xiaoman.app.NotificationActionReceiver"
             android:exported="false" />
 
-        <!-- Scripted see-and-touch run: adb shell am broadcast -a dev.xiaoman.smoke. -->
-        <receiver
-            android:name="dev.xiaoman.app.SmokeReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="dev.xiaoman.smoke" />
-            </intent-filter>
-        </receiver>
+        <!--
+          The `xiaoman` CLI's debug bridge (`DebugReceiver`) and the scripted smoke run
+          (`SmokeReceiver`) are exported and unpermissioned on purpose: they are `adb` entry points.
+          They live in `src/debug/AndroidManifest.xml` so release builds do not ship them.
+        -->
     </application>
 </manifest>
