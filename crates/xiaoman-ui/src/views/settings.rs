@@ -13,8 +13,8 @@ use crate::view_model::copy;
 use crate::view_model::settings::{Endpoint, Field, ModelRows, SettingsModel};
 
 use super::components::{
-    column, divider, field_block, field_error, filled_button, heading, row, small, text_button,
-    text_button_with_id, title, toggle,
+    column, divider, field_block, field_error, filled_button, heading, outlined_button_with_id,
+    row, small, text_button, text_button_with_id, title, toggle,
 };
 use super::text_field::{FieldChanged, TextField};
 
@@ -246,12 +246,15 @@ impl SettingsView {
                     .flex()
                     .items_center()
                     .justify_center()
-                    .px_2()
-                    .py_1()
+                    .w(px(32.))
+                    .h(px(32.))
                     .rounded_md()
+                    .border_1()
+                    .border_color(theme.outline_variant)
                     .cursor_pointer()
-                    .text_size(Theme::body_size())
-                    .text_color(theme.primary)
+                    .text_size(px(11.))
+                    .text_color(theme.on_surface_variant)
+                    .hover(|style| style.bg(theme.surface_variant))
                     .child(caret)
                     .on_click(toggle),
             );
@@ -340,20 +343,18 @@ impl SettingsView {
         let mut block = column().gap_1().py_1().child(
             row()
                 .gap_2()
-                .child(text_button_with_id(
+                .child(outlined_button_with_id(
                     SharedString::from(format!("fetch-{}", endpoint_label(endpoint))),
                     theme,
                     copy::SETTINGS_FETCH_MODELS,
-                    theme.primary,
-                    true,
+                    !rows.probing,
                     fetch,
                 ))
-                .child(text_button_with_id(
+                .child(outlined_button_with_id(
                     SharedString::from(format!("test-{}", endpoint_label(endpoint))),
                     theme,
                     copy::SETTINGS_TEST,
-                    theme.primary,
-                    true,
+                    !rows.probing,
                     test,
                 )),
         );
@@ -376,6 +377,9 @@ impl SettingsView {
 
     /// Runs one probe on a background thread against the draft being edited.
     fn probe(&mut self, endpoint: Endpoint, kind: ProbeKind, cx: &mut Context<Self>) {
+        if self.model.probing(endpoint) {
+            return;
+        }
         let Some(settings) = self.model.draft(endpoint) else {
             self.model.apply_probe(
                 endpoint,
@@ -389,6 +393,7 @@ impl SettingsView {
             return;
         };
         let session = self.session.clone();
+        self.model.set_probing(endpoint, true);
         cx.spawn(async move |this, cx| {
             let outcome = cx
                 .background_executor()
@@ -510,7 +515,7 @@ impl Render for SettingsView {
                                     .text_color(theme.on_surface)
                                     .child(rows.learn.label.clone()),
                             )
-                            .child(toggle(&theme, rows.learn.on, learn)),
+                            .child(toggle(&theme, "learn-toggle", rows.learn.on, learn)),
                     )
                     .child(
                         row()

@@ -3,6 +3,11 @@
 //!
 //! GPUI 0.2 has no widget library, so these are plain `div`s. They take the click handler already
 //! bound to the owning view (`cx.listener`), which keeps every screen free of `Element` plumbing.
+//!
+//! Every interactive element needs an id that is **unique in the window**: GPUI keeps one
+//! `ElementState` per id, and the first non-hovered element that shares an id clears the pending
+//! mouse-down in the capture phase, so every other element with that id stops receiving clicks.
+//! Lists therefore pass their own ids (`*_with_id` helpers, `server-toggle-…`, `banner-…`).
 
 use gpui::{
     App, ClickEvent, Div, FontWeight, Hsla, IntoElement, Pixels, SharedString, Styled, Window, div,
@@ -108,6 +113,7 @@ pub fn pill(_theme: &Theme, text: impl Into<SharedString>, fg: Hsla, bg: Hsla) -
 /// The chat header's banner row: text on the left, an action on the right.
 pub fn banner(
     theme: &Theme,
+    id: impl Into<SharedString>,
     text: impl Into<SharedString>,
     action: impl Into<SharedString>,
     on_action: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
@@ -129,7 +135,7 @@ pub fn banner(
         )
         .child(
             div()
-                .id("banner-action")
+                .id(id.into())
                 .flex_shrink_0()
                 .px_2()
                 .py_1()
@@ -179,10 +185,27 @@ pub fn outlined_button(
     enabled: bool,
     on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
-    let theme = *theme;
     let text: SharedString = text.into();
+    outlined_button_with_id(
+        SharedString::from(format!("outlined-{text}")),
+        theme,
+        text,
+        enabled,
+        on_click,
+    )
+}
+
+/// An outlined button with an id of the caller's choosing.
+pub fn outlined_button_with_id(
+    id: impl Into<SharedString>,
+    theme: &Theme,
+    text: impl Into<SharedString>,
+    enabled: bool,
+    on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+) -> impl IntoElement {
+    let theme = *theme;
     div()
-        .id(SharedString::from(format!("outlined-{}", text.clone())))
+        .id(id.into())
         .flex()
         .items_center()
         .justify_center()
@@ -202,7 +225,7 @@ pub fn outlined_button(
             theme.on_surface_variant
         })
         .when(enabled, |element| element.cursor_pointer())
-        .child(text)
+        .child(text.into())
         .when(enabled, |element| element.on_click(on_click))
 }
 
@@ -256,9 +279,10 @@ pub fn text_button_with_id(
         .when(enabled, |element| element.on_click(on_click))
 }
 
-/// A Material `Switch`, drawn as a track with a knob.
+/// A Material `Switch`, drawn as a track with a knob. `id` keeps the switches of a list apart.
 pub fn toggle(
     theme: &Theme,
+    id: impl Into<SharedString>,
     on: bool,
     on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
@@ -270,7 +294,7 @@ pub fn toggle(
     };
     let knob = if on { theme.on_primary } else { theme.surface };
     div()
-        .id("switch")
+        .id(id.into())
         .flex()
         .flex_row()
         .items_center()

@@ -14,7 +14,7 @@ use crate::view_model::mcp::{CustomRow, McpModel, ServerRow, StatusRow};
 
 use super::components::{
     body, card, chip, column, divider, filled_button, heading, label, outlined_button, row, small,
-    text_button, title, title_small, toggle,
+    text_button_with_id, title, title_small, toggle,
 };
 use super::text_field::{FieldChanged, TextField};
 
@@ -167,7 +167,12 @@ impl McpView {
                         )
                         .child(small(theme, server.description.clone())),
                 )
-                .child(toggle(theme, server.enabled, on_toggle)),
+                .child(toggle(
+                    theme,
+                    format!("server-toggle-{}", server.id),
+                    server.enabled,
+                    on_toggle,
+                )),
         );
 
         if server.enabled {
@@ -183,8 +188,18 @@ impl McpView {
                         .child(input.clone());
                 }
                 if let Some(help) = &key.help {
-                    let help = help.clone();
-                    content = content.child(small(theme, help));
+                    let url = help.clone();
+                    let open = cx.listener(move |_this, _event: &ClickEvent, _window, cx| {
+                        cx.open_url(&url);
+                    });
+                    content = content.child(text_button_with_id(
+                        format!("apply-{}-{}", server.id, key.name),
+                        theme,
+                        copy::MCP_APPLY_KEY,
+                        theme.primary,
+                        true,
+                        open,
+                    ));
                 }
             }
             if let Some(missing) = &server.missing {
@@ -224,7 +239,8 @@ impl McpView {
                         .child(title_small(theme, custom.title.clone()))
                         .child(small(theme, custom.detail.clone())),
                 )
-                .child(text_button(
+                .child(text_button_with_id(
+                    format!("remove-{index}"),
                     theme,
                     copy::MCP_REMOVE,
                     theme.error,

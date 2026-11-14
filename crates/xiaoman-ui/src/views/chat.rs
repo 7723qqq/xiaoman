@@ -485,11 +485,17 @@ impl Render for ChatView {
             .update(cx, |field, cx| field.set_placeholder(placeholder, cx));
 
         let mut banners = column();
-        for item in self.model.banners() {
+        for (index, item) in self.model.banners().into_iter().enumerate() {
             let open_settings = cx.listener(|_this, _event: &ClickEvent, _window, cx| {
                 cx.emit(ChatEvent::OpenSettings);
             });
-            banners = banners.child(banner(&theme, item.text, item.action, open_settings));
+            banners = banners.child(banner(
+                &theme,
+                format!("banner-{index}"),
+                item.text,
+                item.action,
+                open_settings,
+            ));
         }
 
         let rows = self.model.rows().len();

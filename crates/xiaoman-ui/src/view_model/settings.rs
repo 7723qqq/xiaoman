@@ -62,6 +62,8 @@ pub struct ModelRows {
     pub models: Vec<String>,
     /// The dropdown beside the model field is open.
     pub picker_open: bool,
+    /// A probe for this endpoint is in flight; its two buttons are disabled.
+    pub probing: bool,
     /// The last probe's line, painted in the normal or the error colour.
     pub probe: Option<ProbeRow>,
 }
@@ -113,6 +115,8 @@ pub struct SettingsModel {
     models_operator: Vec<String>,
     picker_chat: bool,
     picker_operator: bool,
+    busy_chat: bool,
+    busy_operator: bool,
     probe_chat: Option<ProbeRow>,
     probe_operator: Option<ProbeRow>,
     skills_dir: String,
@@ -131,6 +135,8 @@ impl SettingsModel {
             models_operator: Vec::new(),
             picker_chat: false,
             picker_operator: false,
+            busy_chat: false,
+            busy_operator: false,
             probe_chat: None,
             probe_operator: None,
             skills_dir: String::new(),
@@ -195,6 +201,22 @@ impl SettingsModel {
         }
     }
 
+    /// A probe for this endpoint is in flight.
+    pub fn probing(&self, endpoint: Endpoint) -> bool {
+        match endpoint {
+            Endpoint::Chat => self.busy_chat,
+            Endpoint::Operator => self.busy_operator,
+        }
+    }
+
+    /// Marks a probe as started or finished, so its buttons disable while it runs.
+    pub fn set_probing(&mut self, endpoint: Endpoint, busy: bool) {
+        match endpoint {
+            Endpoint::Chat => self.busy_chat = busy,
+            Endpoint::Operator => self.busy_operator = busy,
+        }
+    }
+
     /// Opening or closing the model dropdown.
     pub fn toggle_picker(&mut self, endpoint: Endpoint) {
         let open = !self.picker_open(endpoint);
@@ -221,6 +243,7 @@ impl SettingsModel {
     /// A successful fetch also opens the dropdown beside the model field, so the next thing the
     /// user sees is the list they asked for.
     pub fn apply_probe(&mut self, endpoint: Endpoint, outcome: ProbeOutcome) {
+        self.set_probing(endpoint, false);
         if let Some(models) = outcome.models {
             let open = !models.is_empty();
             match endpoint {
@@ -426,6 +449,7 @@ impl SettingsModel {
             },
             models: self.models(endpoint).to_vec(),
             picker_open: self.picker_open(endpoint),
+            probing: self.probing(endpoint),
             probe: self.probe(endpoint).cloned(),
         }
     }

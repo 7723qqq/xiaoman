@@ -10,8 +10,8 @@
 use std::path::PathBuf;
 
 use gpui::{
-    App, AppContext as _, Application, Bounds, TitlebarOptions, WindowBounds, WindowOptions, point,
-    px, size,
+    App, AppContext as _, Application, Bounds, TitlebarOptions, WindowBounds, WindowOptions, px,
+    size,
 };
 
 use xiaoman_app::session::{Session, SessionConfig};
@@ -29,12 +29,12 @@ fn main() {
     };
 
     Application::new().run(move |cx: &mut App| {
+        // Centre on the primary display: a remembered or cascaded origin can land off-screen on a
+        // narrower monitor, which looks exactly like "the app did not start".
+        let bounds = Bounds::centered(None, size(px(430.), px(900.)), cx);
         cx.open_window(
             WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(Bounds {
-                    origin: point(px(120.), px(60.)),
-                    size: size(px(430.), px(900.)),
-                })),
+                window_bounds: Some(WindowBounds::Windowed(bounds)),
                 titlebar: Some(TitlebarOptions {
                     title: Some("小满".into()),
                     ..Default::default()
