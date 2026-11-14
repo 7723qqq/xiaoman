@@ -14,7 +14,7 @@ fn repo(relative: &str) -> PathBuf {
 }
 
 fn trace_dir() -> PathBuf {
-    repo("cli/tests/fixtures/traces/r1")
+    repo("crates/xiaoman-cli/tests/fixtures/traces/r1")
 }
 
 #[test]

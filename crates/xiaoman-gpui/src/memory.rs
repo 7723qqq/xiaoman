@@ -24,7 +24,7 @@ pub struct MemoryView {
     /// True when the list holds search hits rather than every note.
     searched: bool,
     message: Option<String>,
-    /// The pending 250 ms debounce behind typing, like the Compose `debounce(250)`.
+    /// The pending 250 ms debounce behind typing, with a 250 ms debounce.
     debounce: Option<Task<()>>,
     _subscription: gpui::Subscription,
 }
@@ -70,11 +70,15 @@ impl MemoryView {
     }
 
     /// The system back button: closes the open note (and its delete confirmation).
-    pub fn back(&mut self, cx: &mut Context<Self>) {
+    /// Returns true when it handled the back press.
+    pub fn back(&mut self, cx: &mut Context<Self>) -> bool {
         if self.open.is_some() {
             self.open = None;
             self.confirm_delete = None;
             cx.notify();
+            true
+        } else {
+            false
         }
     }
 
@@ -98,7 +102,7 @@ impl MemoryView {
             self.list(cx);
             return;
         }
-        match session.memory_search(&query, 30) {
+        match session.memory_search(&query, 50) {
             Ok(hits) => {
                 self.notes = hits
                     .into_iter()
@@ -228,7 +232,7 @@ impl Render for MemoryView {
                         .flex()
                         .items_center()
                         .gap_2()
-                        .child(Input::new(&self.query).flex_1())
+                        .child(Input::new(&self.query).flex_1().cleanable(true))
                         .child(
                             Button::new("search-memory")
                                 .primary()
@@ -260,15 +264,19 @@ impl Render for MemoryView {
                         .p_3()
                         .rounded_lg()
                         .bg(rgb(0xffffff))
+                        // The whole row opens the note, like the old app's clickable ListItem.
+                        .on_mouse_down(
+                            gpui::MouseButton::Left,
+                            cx.listener(move |this, _, _, cx| {
+                                this.open(&permalink, cx);
+                            }),
+                        )
                         .child(div().text_base().child(note.title.clone()))
                         .child(hint(note.permalink.clone()))
-                        .child(
-                            Button::new(format!("open-{}", note.permalink))
-                                .label("打开")
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    this.open(&permalink, cx);
-                                })),
-                        )
+                        // Search hits carry the matching snippet in `body`.
+                        .when(self.searched && !note.body.is_empty(), |this| {
+                            this.child(hint(note.body.clone()))
+                        })
                 })),
         )
     }

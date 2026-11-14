@@ -2,52 +2,53 @@
 
 小满是一个跑在 Android 手机上的开源私人助手：你在它的 App 里聊天，它替你操作手机上的其他
 App。框架负责“手”（无障碍操作）、“眼”（读屏）、记忆、安全闸门和模型调用；具体场景（打车、外卖、
-购票……）由用户以**场景技能**的形式添加。技能是 Markdown/YAML 小文件夹，不需要重新打包 APK。
+购票……）由用户以**场景技能**的形式添加。技能是 Markdown/YAML 小文件夹，不需要重新打包 APK，
+也可以在聊天里让小满起草、确认后保存。
 
-需要 Android 11（API 30）及以上。iOS 不允许一个 App 操作其他 App，只能由 Mac 通过 WebDriverAgent 操作 iPhone（`ios-hands` + `ios-runner`），见 [ios.md](ios.md)。
+需要 Android 11（API 30）及以上。iOS 不允许一个 App 操作其他 App，只能由 Mac 通过 WebDriverAgent
+操作 iPhone（`crates/xiaoman-ios`），见 [ios.md](ios.md)。
 
 ## 模块
 
-| 模块 | 类型 | 职责 |
-|---|---|---|
-| `core-api` | Kotlin/JVM | 下文所有接口与数据结构。其他模块都依赖它，且只依赖它 |
-| `core-llm` | Kotlin/JVM | `OpenAiCompatibleClient`：对话补全、图片输入、工具调用、JSON 模式、重试 |
-| `core-memory` | Kotlin/JVM | `FileMemoryStore`：磁盘上的 Basic Memory Markdown 笔记，加上支持中文的检索索引 |
-| `core-skills` | Kotlin/JVM | `DirectorySkillRepository`：加载并校验 `SKILL.md` 和 `flow.yaml` |
-| `core-sentinel` | Kotlin/JVM | `PolicySentinel`：允许 / 询问 / 拒绝，任务级授权，审计 |
-| `core-agent` | Kotlin/JVM | `XiaomanAgent`：聊天编排、操作循环、技能流程、经验笔记 |
-| `hands` | Android 库 | `XiaomanAccessibilityService`、`AccessibilityDevice`、状态悬浮窗 |
-| `app` | Android 应用 | 聊天界面、设置、技能与记忆页面、授权确认、调试桥、轨迹 |
-| `core-mcp` | Kotlin/JVM | `McpToolProvider`：把 MCP 服务器（高德、滴滴等）的工具交给聊天模型，带确认策略与密钥脱敏，见 [mcp.md](mcp.md) |
-| `web-server` | Kotlin/JVM 应用 | 网页版：同源移动端网页 + `/api/*`（SSE 聊天、确认、MCP 目录与测试），每个会话一个不操作手机的 `XiaomanAgent`，见 [web.md](web.md) |
-| `ios-hands` | Kotlin/JVM | `WdaDevice`：通过 iPhone 上的 WebDriverAgent 实现 `Device`（截图、界面树、点击、输入、返回） |
-| `ios-runner` | Kotlin/JVM 命令行 | Mac 上的 `ios-runner`：把 `core-*` 与 `WdaDevice` 组装起来，终端确认、轨迹、提醒 |
-| `cli/` | Python 3（仅标准库） | 面向技能作者的开发工具：通过 adb 做校验、推送、运行、日志、轨迹 |
+| crate | 职责 |
+|---|---|
+| `xiaoman-api` | 所有接口与数据结构，其他 crate 只依赖它 |
+| `xiaoman-llm` | `OpenAiCompatibleClient`：对话补全、图片输入、工具调用、JSON 模式、重试 |
+| `xiaoman-memory` | `FileMemoryStore`：磁盘上的 Basic Memory Markdown 笔记，加上支持中文的检索索引 |
+| `xiaoman-skills` | `DirectorySkillRepository`：加载并校验 `SKILL.md` / `flow.yaml`；`DirectorySkillAuthoring`：渲染、校验与写入技能草稿 |
+| `xiaoman-vocab` | 背单词引擎：内置专升本词库、每日批次、艾宾浩斯复习状态、提醒窗口与 JSON 持久化 |
+| `xiaoman-sentinel` | `PolicySentinel`：允许 / 询问 / 拒绝，任务级授权，审计 |
+| `xiaoman-agent` | `XiaomanAgent`：聊天编排、操作循环、技能流程、经验笔记 |
+| `xiaoman-mcp` | `McpToolProvider`：把 MCP 服务器的工具交给聊天模型，带确认策略与密钥脱敏，见 [mcp.md](mcp.md) |
+| `xiaoman-android` | `Device`、节点压缩、截图、手势、JNI 桥；`src/session.rs` 是应用级 Session 的 JNI |
+| `xiaoman-gpui` | Android 正式前端：六页 GPUI 界面（含背单词页）、聊天里的审批卡与技能草稿卡 |
+| `xiaoman-app` | 无头会话：聊天轮次、审批/提问/技能草稿、设置、MCP 选择、轨迹 |
+| `xiaoman-ui` | 桌面端 GPUI 六页界面（含背单词页） |
+| `xiaoman-web` | 网页版 HTTP/SSE、课堂令牌、自助领取、`--local` 与 `/connect` 扫码页，见 [web.md](web.md) |
+| `xiaoman-ios` | WDA 设备与 Mac runner，MCP 工具已接入聊天模型 |
+| `xiaoman-cli` | 技能开发 CLI：校验、推送、运行、日志、轨迹 |
 
-五个 `core-*` JVM 模块不接触任何 Android API，可以在任意机器上跑单元测试。依赖方向：
+依赖方向：`xiaoman-api` 在最底层；`xiaoman-app` 组装 `xiaoman-agent` 与各实现；两个 UI
+（`xiaoman-gpui` / `xiaoman-ui`）只读写 `xiaoman-app::Session`。
 
-```
-app ──► core-agent / core-llm / core-memory / core-skills / core-sentinel ──► core-api
- └────► hands ─────────────────────────────────────────────────────────────► core-api
-```
+Android 宿主里的 Kotlin 只保留 Android 框架要求的对象：无障碍服务、前台服务、通知、AlarmManager、
+Keystore、悬浮窗和 JNI 壳；所有决策都在 Rust。
 
-`app/AppGraph.kt` 是手写的依赖容器，把各模块的实现组装成 `XiaomanAgent`。
-
-### core-agent 内部文件
+## Agent 内部文件
 
 | 文件 | 内容 |
 |---|---|
-| `XiaomanAgent.kt` | `Agent` 实现：一轮聊天（`handle`）、一次手机任务（`runPhoneTask`）、成功后的经验沉淀 |
-| `AgentTools.kt` | 提供给聊天模型的工具定义（名称与 JSON Schema） |
-| `ChatTools.kt` | 执行聊天模型发起的工具调用 |
-| `TaskRun.kt` | 一次手机任务的运行状态，以及操作循环与流程共用的结果类型 |
-| `OperatorLoop.kt` | 操作循环：观察 → 请求操作模型 → 解析 → Sentinel → 执行 → 卡死检测 |
-| `ScreenText.kt` | 屏幕和操作的文字表示，用于提示词、历史记录和经验笔记 |
-| `FlowRunner.kt` | 按顺序执行技能的 `flow.yaml` 步骤 |
-| `OperatorReplyParser.kt` | 宽松解析操作模型的回复 |
-| `Prompts.kt` | 所有面向模型的中文文本，集中管理便于调优 |
-| `ReminderTimes.kt` | `reminder_set` 工具的本地 ISO-8601 时间解析与当前时间格式化 |
-| `JsonText.kt`、`NoteText.kt` | JSON 读取与笔记渲染的小工具 |
+| `xiaoman_agent.rs` | `Agent` 实现：一轮聊天（`handle`）、一次手机任务（`run_phone_task`）、成功后的经验沉淀 |
+| `agent_tools.rs` | 提供给聊天模型的工具定义（名称与 JSON Schema） |
+| `chat_tools.rs` | 执行聊天模型发起的工具调用 |
+| `task_run.rs` | 一次手机任务的运行状态，以及操作循环与流程共用的结果类型 |
+| `operator_loop.rs` | 操作循环：观察 → 请求操作模型 → 解析 → Sentinel → 执行 → 卡死检测 |
+| `screen_text.rs` | 屏幕和操作的文字表示，用于提示词、历史记录和经验笔记 |
+| `flow_runner.rs` / `flow_step.rs` | 按顺序执行技能的 `flow.yaml` 步骤 |
+| `operator_reply_parser.rs` | 宽松解析操作模型的回复 |
+| `prompts.rs` | 所有面向模型的中文文本，集中管理便于调优 |
+| `reminder_times.rs` | `reminder_set` 工具的本地 ISO-8601 时间解析与当前时间格式化 |
+| `json_text.rs` / `note_text.rs` | JSON 读取与笔记渲染的小工具 |
 
 ## 一轮聊天
 
@@ -56,10 +57,26 @@ app ──► core-agent / core-llm / core-memory / core-skills / core-sentinel 
                │  系统提示词 = 人设 + 技能索引（name: description）+ 记忆检索命中
                ▼
            聊天模型（角色 CHAT），可用工具：
-               memory_search / memory_read / memory_write / memory_forget / list_skills / reminder_set / phone_task
+               memory_search / memory_read / memory_write / memory_forget / list_skills
+               skill_read / skill_edit（仅手机与桌面）/ reminder_set / phone_task
                │
                └─ phone_task(goal, skill?) ──► 操作循环（见下）──► 结果摘要返回给聊天模型
 ```
+
+## 技能编辑
+
+`skill_read` 读取当前 `SKILL.md`；`skill_edit` 只提交结构化字段（name、description、channel、
+instructions、apps、confirm_before、memory、deeplinks），由 `DirectorySkillAuthoring` 渲染成
+`SKILL.md` 并校验：
+
+1. 名字 `[a-z0-9-]+`、description 单行、chat 技能不能带 apps/deeplinks/confirm_before。
+2. 用 `SkillParser` 重新解析；修改带 `flow.yaml` 的技能时用现有流程校验，写盘时流程文件原样保留。
+3. 敏感信息扫描：手机号、`sk-`/`xm-`/GitHub/AWS 形状的 Key、私钥块、`Bearer`、`password: value`
+   一类赋值；只报规则名，不回显值。
+4. 校验通过后会话挂起一个 `SkillDraft`，聊天页显示完整 `SKILL.md` 和「保存 / 取消」；只有保存才
+   `commit`。删除内置技能在校验阶段就被拒绝，内置文件不会被写或删。
+
+网页版与 iOS 不提供这两个工具。
 
 ## 操作循环
 
@@ -84,7 +101,7 @@ for step in 0 until maxSteps:
 {"thought": "目的地输入框在顶部", "action": {"type": "tap", "nodeId": 12, "target": "目的地输入框", "reason": "先输入目的地"}}
 ```
 
-`action` 是 `core-api` 中的 `Action`，以 `type` 区分：`tap`、`long_press`、`swipe`、`type`、`back`、
+`action` 是 `xiaoman-api` 中的 `Action`，以 `type` 区分：`tap`、`long_press`、`swipe`、`type`、`back`、
 `home`、`launch`、`deeplink`、`wait`、`ask_user`、`finish`。坐标归一化到 0..1000。点击可以指定
 `nodeId`（节点列表中有该元素时优先使用）或 `point`。
 
@@ -95,18 +112,17 @@ Agent 会按目标检索 `howto` 笔记，把命中结果放进操作提示词�
 ## 技能
 
 技能是一个文件夹：`SKILL.md`（frontmatter + Markdown 说明）和可选的 `flow.yaml`。格式定义见
-`core-api/src/main/kotlin/dev/xiaoman/api/Skills.kt` 和 [`docs/skills.md`](skills.md)，示例在
-`skills/examples/`。
+`crates/xiaoman-api/src/skills.rs` 和 [`docs/skills.md`](skills.md)，示例在 `skills/examples/`。
 
 手机上的技能目录：`<external files>/skills/<name>/`，其中 `<external files>` 为
-`/sdcard/Android/data/dev.xiaoman.app/files`。App 也会把示例技能作为 assets 一起打包。
+`/sdcard/Android/data/dev.xiaoman.app/files`。App 也会把示例技能作为 assets 一起打包；内置目录只读，
+用户技能覆盖同名内置技能。
 
 ## 记忆
 
 笔记是 `<external files>/memory/` 下的 Markdown 文件，采用 Basic Memory 格式：frontmatter 包含
 `title/type/permalink/tags`；`## Observations` 下每行为 `- [category] content #tag (context)`；
 `## Relations` 下每行为 `- relation [[Target]]`。整个目录可以直接拷进 Obsidian 仓库。「忘记」会删除文件。
-小满自行实现这一格式，没有内嵌 Basic Memory（AGPL-3.0）的代码。
 
 ## 安全（Sentinel）
 
@@ -120,17 +136,20 @@ Agent 会按目标检索 `howto` 笔记，把命中结果放进操作提示词�
    `deeplinks` 模板都不匹配（scheme 和 host 都相同才算匹配）时也要询问。
 3. `allow`（允许）：其他所有操作。
 
-授权分为“仅一次”（ONCE）和“本次任务”（TASK）两种范围。每一次决策都写入审计记录。
+授权分为“仅一次”（ONCE）和“本次任务”（TASK）两种范围。每一次决策都写入审计记录。审批身份是端到端的：
+`Session::answer_approval` 要求 approval id，卡片和通知都传 id，过期卡片不会回答新审批
+（`a_stale_approval_id_cannot_answer_the_current_card`）。
 
 ## 调试桥（仅 debug 包）
 
-App 注册了 `dev.xiaoman.app.debug.DebugReceiver`（只在 debug 清单中导出）：
+Android 宿主注册 `dev.xiaoman.app.debug.DebugReceiver`（只在 debug 清单中导出）：
 
 | 广播 action | 参数 | 作用 |
 |---|---|---|
-| `dev.xiaoman.debug.RUN` | `goal`（字符串）、`skill`（可选）、`run_id`（可选） | 在前台服务中执行 `Agent.runPhoneTask` |
+| `dev.xiaoman.debug.RUN` | `goal`（字符串）、`skill`（可选）、`run_id`（可选） | 在前台服务中执行 `runPhoneTask` |
 | `dev.xiaoman.debug.STOP` | 无 | 给正在运行的任务发送停止信号 |
 | `dev.xiaoman.debug.RELOAD_SKILLS` | 无 | 调用 `SkillRepository.reload()` 并记录加载问题 |
+| `dev.xiaoman.debug.SAY` | `text` | 当作用户输入发一条聊天消息 |
 
 示例：`adb shell am broadcast -n dev.xiaoman.app/.debug.DebugReceiver -a dev.xiaoman.debug.RUN --es goal "打开设置" --es run_id r1`
 
@@ -149,51 +168,32 @@ App 注册了 `dev.xiaoman.app.debug.DebugReceiver`（只在 debug 清单中导�
 ## 模型
 
 任意兼容 OpenAI 接口的服务都可以。需要两组设置：聊天模型和操作（读屏）模型，后者必须支持图片输入。
-以火山方舟为例：Base URL 为 `https://ark.cn-beijing.volces.com/api/v3`；开发机上 Key 放在环境变量
-`ARK_API_KEY` 中，手机上则填写到「设置」里。API Key 不会写入日志、轨迹或记忆。
+以火山方舟为例：Base URL 为 `https://ark.cn-beijing.volces.com/api/v3`。API Key 不会写入日志、轨迹或记忆。
 
 ## 构建
 
-`scripts/gradle.sh <tasks>` 会把构建产物放到仓库目录之外。需要 JDK 17 和 Android SDK 35。
+```bash
+cargo test --workspace
+cargo run -p xiaoman-ui
+cargo run -p xiaoman-web --bin web-server -- --local
+cargo run -p xiaoman-cli -- run "目标"
+cargo run -p xiaoman-ios --bin ios-runner -- check
+./gradlew -p crates/xiaoman-gpui/android assembleDebug   # 需要 JDK 17、Android SDK 35、NDK 27
+```
 
-## Rust 实现（移植）
+Android 宿主的数据目录是 `/sdcard/Android/data/dev.xiaoman.app/files`；调试桥 action 见上表，
+接收器为 `dev.xiaoman.app/.debug.DebugReceiver`。
 
-`crates/` 是同一架构的 Rust 实现，Kotlin 版本保留为参考实现。模块对应关系：
+## 测试与固定输入
 
-| Kotlin | Rust | 说明 |
-|---|---|---|
-| `core-api` | `xiaoman-api` | 接口与数据结构；`Action` 序列化和 `ScreenState.fingerprint` 与 Kotlin 字节兼容 |
-| `core-llm` | `xiaoman-llm` | OpenAI 兼容客户端：重试、JSON 模式回退、图片、工具调用 |
-| `core-memory` | `xiaoman-memory` | Basic Memory 格式、中文检索、permalink |
-| `core-skills` | `xiaoman-skills` | `SKILL.md` / `flow.yaml` 解析与仓库 |
-| `core-sentinel` | `xiaoman-sentinel` | 允许 / 询问 / 拒绝、任务级授权、审计 |
-| `core-agent` | `xiaoman-agent` | `XiaomanAgent`：聊天、操作循环、技能流程、经验笔记 |
-| `core-mcp` | `xiaoman-mcp` | MCP 客户端、目录、确认策略与脱敏 |
-| `hands` | `xiaoman-android` | `Device`、节点压缩、截图、手势、JNI 桥；`src/session.rs` 是 Session 的应用级 JNI |
-| `app` | `xiaoman-app` + `xiaoman-ui` | 无头会话 / 设置 / 轨迹；桌面 GPUI 五页界面 |
-| `app`（Android 前端） | `crates/xiaoman-gpui` + `crates/xiaoman-android` | 五页 GPUI 界面；根 workspace 成员，CI 与 Compose 回退各出一个 APK。Kotlin 只保留无障碍服务、前台服务、通知、AlarmManager 提醒、Debug 广播桥。`crates/xiaoman-android/android` 的 Compose 宿主是回退 |
-| `web-server` | `xiaoman-web` | 网页版 HTTP/SSE、课堂令牌、自助领取、`--local` 与 `/connect` 扫码页 |
-| `ios-hands`、`ios-runner` | `xiaoman-ios` | WDA 设备、Mac 命令行、MCP 工具与提醒 |
-| `cli/` | `xiaoman-cli` | 校验、推送、运行、日志、轨迹 |
+`fixtures/` 下的用例由 Rust 测试读取：
 
-入口：`cargo run -p xiaoman-ui`（桌面）、`cargo run -p xiaoman-web --bin web-server -- --local`（网页版）、
-`cargo run -p xiaoman-cli -- run "目标"`（开发者 CLI）、`ios-runner`（Mac）、
-`./gradlew -p crates/xiaoman-gpui/android assembleDebug`（Android GPUI APK；Compose 回退用 `crates/xiaoman-android/android`）。
+- `fixtures/action/*.in.json` / `.out.json`：`Action` 的线格式，`action_json.rs` 断言解码后再编码等于 `.out.json`。
+- `fixtures/memory/*.input.md` / `.rendered.md`：Basic Memory frontmatter 与正文的渲染逐字节比较。
+- `fixtures/skills`、`fixtures/sentinel`、`fixtures/trace`、`fixtures/mcp`、`fixtures/llm`：技能问题列表、
+  Sentinel 决策、轨迹逐行、MCP 脱敏与 LLM 重试。
+- `ScreenState::fingerprint` 钉死常量 `-22de5649`（Java `hashCode` 为 `-584996425`），并覆盖
+  `Int.MIN_VALUE` 的十六进制输出。
 
-Android 宿主的数据目录是 `/sdcard/Android/data/dev.xiaoman.host/files`；调试桥 action 与 Kotlin 版相同
-（`dev.xiaoman.debug.RUN/STOP/RELOAD_SKILLS/SAY`），接收器为 `dev.xiaoman.host/dev.xiaoman.app.DebugReceiver`。
-
-### 一致性怎么保证（golden fixtures）
-
-`fixtures/` 下的用例由 Kotlin 测试和 Rust 测试各跑一遍，结果逐字节比较：
-
-- `fixtures/action/*.in.json` / `.out.json`：`Action` 的线格式。Kotlin `ActionGoldenTest` 与
-  Rust `action_json.rs` 都断言“解码后再编码”等于 `.out.json`。
-- `fixtures/memory/*.input.md` / `.rendered.md`：Basic Memory frontmatter 与正文的渲染。Kotlin
-  `GoldenTest` 与 Rust `golden.rs` 都对同一份输入断言逐字节相等；两侧使用同一套标量引用规则
-  （含 `: `、`#`、数字样字符串和首尾空白）。
-- `ScreenState::fingerprint` 在 `core-api` 与 `xiaoman-api` 的测试里钉死同一个常量
-  `-22de5649`（Java `hashCode` 为 `-584996425`），并覆盖 `Int.MIN_VALUE` 的十六进制输出。
-
-审批身份是端到端的：`Session::answer_approval` 要求 approval id，桌面卡片、GPUI 卡片和通知栏
-都传 id，过期卡片或通知不会回答新审批（`a_stale_approval_id_cannot_answer_the_current_card`）。
+`crates/xiaoman-android/tests/jni_signatures.rs` 校验 Android 宿主的每个 `external fun` 都有对应的
+JNI 导出、参数个数与类型一致，并检查 `NotifierBridge` 实现了 Rust 调用的全部方法。

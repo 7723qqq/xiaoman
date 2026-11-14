@@ -23,11 +23,13 @@ use super::mcp::McpView;
 use super::memory::MemoryView;
 use super::settings::{SettingsSaved, SettingsView};
 use super::skills::SkillsView;
+use super::vocab::VocabView;
 
 /// One tab of the bottom bar, in Compose order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
     Chat,
+    Vocab,
     Skills,
     Services,
     Memory,
@@ -35,8 +37,9 @@ pub enum Tab {
 }
 
 impl Tab {
-    pub const ALL: [Tab; 5] = [
+    pub const ALL: [Tab; 6] = [
         Tab::Chat,
+        Tab::Vocab,
         Tab::Skills,
         Tab::Services,
         Tab::Memory,
@@ -46,6 +49,7 @@ impl Tab {
     pub fn label(self) -> &'static str {
         match self {
             Self::Chat => copy::NAV_CHAT,
+            Self::Vocab => copy::NAV_VOCAB,
             Self::Skills => copy::NAV_SKILLS,
             Self::Services => copy::NAV_SERVICES,
             Self::Memory => copy::NAV_MEMORY,
@@ -59,6 +63,7 @@ pub struct RootView {
     tab: Tab,
     session: Session,
     chat: Entity<ChatView>,
+    vocab: Entity<VocabView>,
     skills: Entity<SkillsView>,
     mcp: Entity<McpView>,
     memory: Entity<MemoryView>,
@@ -73,6 +78,7 @@ impl RootView {
             view.sync(cx);
             view
         });
+        let vocab = cx.new(|cx| VocabView::new(cx, session.clone()));
         let skills = cx.new(|cx| SkillsView::new(cx, session.clone()));
         let mcp = cx.new(|cx| McpView::new(cx, session.clone()));
         let memory = cx.new(|cx| MemoryView::new(cx, session.clone()));
@@ -119,6 +125,7 @@ impl RootView {
             tab: Tab::Chat,
             session,
             chat,
+            vocab,
             skills,
             mcp,
             memory,
@@ -156,6 +163,14 @@ impl RootView {
             this.tab = tab;
             if tab == Tab::Memory {
                 this.memory.update(cx, |memory, cx| memory.reload(cx));
+            }
+            if tab == Tab::Skills {
+                // A skill saved from the chat must be visible without a manual reload.
+                this.skills.update(cx, |skills, cx| skills.reload(cx));
+            }
+            if tab == Tab::Vocab {
+                // The chat tools may have created the day's batch or graded words.
+                this.vocab.update(cx, |vocab, cx| vocab.reload(cx));
             }
             cx.notify();
         });
@@ -201,6 +216,7 @@ impl Render for RootView {
         let theme = theme(cx);
         let body = match self.tab {
             Tab::Chat => self.chat.clone().into_any_element(),
+            Tab::Vocab => self.vocab.clone().into_any_element(),
             Tab::Skills => self.skills.clone().into_any_element(),
             Tab::Services => self.mcp.clone().into_any_element(),
             Tab::Memory => self.memory.clone().into_any_element(),

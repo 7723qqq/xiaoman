@@ -231,6 +231,36 @@ pub enum KeyboardType {
     Decimal,
 }
 
+/// The IME's action key (bottom-right of the soft keyboard).
+///
+/// Maps to `UIKeyboardAction` on iOS and `EditorInfo.IME_ACTION_*` on Android.
+#[derive(Debug, Clone, Copy, Default)]
+pub enum ImeAction {
+    /// Let the system choose (usually Done/Newline).
+    #[default]
+    Default,
+    /// A send action: the chat input treats it as "send".
+    Send,
+    Done,
+    Next,
+    Search,
+    Go,
+}
+
+impl ImeAction {
+    /// The `EditorInfo.IME_ACTION_*` constant the Java side ORs into `setImeOptions`.
+    pub fn as_java(self) -> i32 {
+        match self {
+            Self::Default => 0,
+            Self::Go => 2,
+            Self::Search => 3,
+            Self::Send => 4,
+            Self::Next => 5,
+            Self::Done => 6,
+        }
+    }
+}
+
 /// Show the software keyboard with the default keyboard type.
 ///
 /// On iOS this makes the hidden text input view the first responder.
@@ -265,6 +295,28 @@ pub fn show_keyboard_with_type(keyboard_type: KeyboardType) {
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
     {
         let _ = keyboard_type;
+    }
+}
+
+/// Show the software keyboard with a specific IME action and the default keyboard type.
+pub fn show_keyboard_with_action(action: ImeAction) {
+    show_keyboard_with_type_and_action(KeyboardType::Default, action);
+}
+
+/// Show the software keyboard with a specific keyboard type and IME action.
+pub fn show_keyboard_with_type_and_action(keyboard_type: KeyboardType, action: ImeAction) {
+    #[cfg(target_os = "ios")]
+    {
+        let _ = action;
+        show_keyboard_with_type(keyboard_type);
+    }
+    #[cfg(target_os = "android")]
+    {
+        android::jni::show_keyboard_android_with_action(keyboard_type, action);
+    }
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    {
+        let _ = (keyboard_type, action);
     }
 }
 

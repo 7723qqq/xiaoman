@@ -1,4 +1,4 @@
-//! The clap command line: names, flags and Chinese help text of the Python CLI.
+//! The clap command line: names, flags and Chinese help text.
 
 use std::ffi::OsString;
 use std::io::Write;

@@ -13,7 +13,7 @@ import java.io.File
  *
  * The data directory is the app's external files directory, so `adb` can push skills and pull
  * traces at the same paths the CLI uses:
- * `/sdcard/Android/data/dev.xiaoman.host/files/{settings.json,memory,skills,traces}`.
+ * `/sdcard/Android/data/dev.xiaoman.app/files/{settings.json,memory,skills,traces}`.
  * The bundled example skills are copied out of `assets/skills` on first run (and after an update),
  * then searched before the user's own folder.
  */

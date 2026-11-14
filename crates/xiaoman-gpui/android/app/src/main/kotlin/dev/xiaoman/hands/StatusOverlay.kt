@@ -14,7 +14,7 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
-import dev.xiaoman.host.R
+import dev.xiaoman.app.R
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 

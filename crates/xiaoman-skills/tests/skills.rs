@@ -445,6 +445,7 @@ async fn loads_examples_without_problems() {
         vec![
             "ai-news-brief",
             "daily-quiz",
+            "english-vocab",
             "health-alarms",
             "meituan-takeout-order",
             "open-settings-wifi",

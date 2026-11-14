@@ -88,8 +88,15 @@
 
         <!-- Debug build bridge for the `xiaoman` CLI (RUN / STOP / RELOAD_SKILLS / SAY). -->
         <receiver
-            android:name="dev.xiaoman.app.DebugReceiver"
-            android:exported="true" />
+            android:name=".debug.DebugReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="dev.xiaoman.debug.RUN" />
+                <action android:name="dev.xiaoman.debug.STOP" />
+                <action android:name="dev.xiaoman.debug.RELOAD_SKILLS" />
+                <action android:name="dev.xiaoman.debug.SAY" />
+            </intent-filter>
+        </receiver>
 
         <!-- AlarmManager reminder and the notification card's own actions. -->
         <receiver

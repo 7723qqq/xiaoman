@@ -138,6 +138,8 @@ pub struct AgentConfig {
     pub operator_notes: String,
     /// Offer `phone_task` to the chat model. Off where there is no phone to operate.
     pub phone_tasks: bool,
+    /// The user's UTC offset when the host knows it (the web server); `None` uses the device zone.
+    pub utc_offset_minutes: Option<i32>,
 }
 
 impl Default for AgentConfig {
@@ -150,6 +152,7 @@ impl Default for AgentConfig {
             learn_from_success: true,
             operator_notes: String::new(),
             phone_tasks: true,
+            utc_offset_minutes: None,
         }
     }
 }

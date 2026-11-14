@@ -20,11 +20,11 @@ fn repo(relative: &str) -> PathBuf {
 }
 
 fn skill_fixture() -> PathBuf {
-    repo("cli/tests/fixtures/skills/ride-home")
+    repo("crates/xiaoman-cli/tests/fixtures/skills/ride-home")
 }
 
 fn traces_fixture() -> PathBuf {
-    repo("cli/tests/fixtures/traces")
+    repo("crates/xiaoman-cli/tests/fixtures/traces")
 }
 
 fn strings(items: &[&str]) -> Vec<String> {

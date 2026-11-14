@@ -16,6 +16,6 @@ pub use provider::{
     UserChannelApprovals,
 };
 pub use transport::{
-    McpError, McpHttpTransport, McpStdioTransport, McpTransport, PROTOCOL_VERSION, command_line,
-    create,
+    DynResolve, McpError, McpHttpTransport, McpStdioTransport, McpTransport, PROTOCOL_VERSION,
+    STDIO_ENVIRONMENT, TransportOptions, command_line, create, create_with_options,
 };

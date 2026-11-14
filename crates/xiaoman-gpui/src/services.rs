@@ -16,15 +16,16 @@ use xiaoman_mcp::{
     ServerStatus,
 };
 
-use crate::ui::{field, hint, input, title, value};
+use crate::ui::{field, field_masked, hint, input, input_masked, title, value};
 
-/// Ids of 推荐组合: free or easy to obtain, read-only. Same two as the Kotlin app.
+/// Ids of 推荐组合: free or easy to obtain, read-only. The same two as the reference catalog.
 const RECOMMENDED: [&str; 2] = ["amap", "aihot"];
 
 struct ServerRow {
     server: CatalogServer,
     enabled: bool,
-    inputs: Vec<(String, Entity<InputState>)>,
+    /// `(name, label, input)` per key: the label is the user-facing field name.
+    inputs: Vec<(String, String, Entity<InputState>)>,
 }
 
 pub struct ServicesView {
@@ -39,6 +40,7 @@ pub struct ServicesView {
     message: Option<String>,
     pending: Arc<Mutex<Option<Vec<ServerStatus>>>>,
     poll: Option<Task<()>>,
+    testing: bool,
 }
 
 impl ServicesView {
@@ -60,7 +62,8 @@ impl ServicesView {
                         let initial = selection.keys.get(&key.name).cloned().unwrap_or_default();
                         (
                             key.name.clone(),
-                            input(window, cx, key.label.clone(), initial),
+                            key.label.clone(),
+                            input_masked(window, cx, key.label.clone(), initial),
                         )
                     })
                     .collect();
@@ -73,7 +76,7 @@ impl ServicesView {
             .collect();
         let add_title = input(window, cx, "名称", "");
         let add_url = input(window, cx, "Streamable HTTP 地址", "");
-        let add_auth = input(window, cx, "Authorization（可选）", "");
+        let add_auth = input_masked(window, cx, "Authorization（可选）", "");
         Self {
             session,
             rows,
@@ -86,6 +89,7 @@ impl ServicesView {
             message: None,
             pending: Arc::new(Mutex::new(None)),
             poll: None,
+            testing: false,
         }
     }
 
@@ -96,7 +100,7 @@ impl ServicesView {
             if row.enabled {
                 enabled.insert(row.server.id.clone());
             }
-            for (name, input) in &row.inputs {
+            for (name, _label, input) in &row.inputs {
                 let value = value(input, cx);
                 if !value.is_empty() {
                     keys.insert(name.clone(), value);
@@ -155,6 +159,7 @@ impl ServicesView {
                         .map(|status| (status.name.clone(), status))
                         .collect();
                     this.message = Some("测试完成。".to_string());
+                    this.testing = false;
                     cx.notify();
                 });
                 break;
@@ -163,6 +168,7 @@ impl ServicesView {
     }
 
     fn testing_started(&mut self, cx: &mut Context<Self>) {
+        self.testing = true;
         self.message = Some("正在连接…".to_string());
         self.statuses.clear();
         cx.notify();
@@ -172,13 +178,13 @@ impl ServicesView {
 impl Render for ServicesView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let url_text = value(&self.add_url, cx);
-        // An empty field is not an error yet; the Compose form validates only what was typed.
+        // An empty field is not an error yet; the form validates only what was typed.
         let url_problem = if url_text.trim().is_empty() {
             None
         } else {
             McpCatalog::validate_custom_url(&url_text)
         };
-        // The Compose screen groups the catalog by category, in catalog order.
+        // The services screen groups the catalog by category, in catalog order.
         let mut groups: Vec<(String, Vec<&ServerRow>)> = Vec::new();
         for row in &self.rows {
             match groups
@@ -224,15 +230,8 @@ impl Render for ServicesView {
                             let labels: Vec<String> = row
                                 .inputs
                                 .iter()
-                                .filter(|(_, input)| value(input, cx).trim().is_empty())
-                                .map(|(name, _)| {
-                                    row.server
-                                        .keys
-                                        .iter()
-                                        .find(|key| &key.name == name)
-                                        .map(|key| key.label.clone())
-                                        .unwrap_or_else(|| name.clone())
-                                })
+                                .filter(|(_, _, input)| value(input, cx).trim().is_empty())
+                                .map(|(_, label, _)| label.clone())
                                 .collect();
                             if labels.is_empty() {
                                 None
@@ -292,28 +291,34 @@ impl Render for ServicesView {
                                     .child(switch),
                             )
                             .child(div().text_sm().child(row.server.description.clone()))
-                            .children(row.inputs.iter().map(|(name, input)| {
-                                let help = row
-                                    .server
-                                    .keys
-                                    .iter()
-                                    .find(|key| &key.name == name)
-                                    .and_then(|key| key.help.clone());
-                                div()
-                                    .flex()
-                                    .flex_col()
-                                    .gap_1()
-                                    .child(field(name, input))
-                                    .when_some(help, |this, help| {
-                                        this.child(
-                                            Button::new(format!("apply-{}-{name}", row.server.id))
+                            .when(row.enabled, |this| {
+                                // The old app shows a service's key fields only once it is on.
+                                this.children(row.inputs.iter().map(|(name, label, input)| {
+                                    let help = row
+                                        .server
+                                        .keys
+                                        .iter()
+                                        .find(|key| &key.name == name)
+                                        .and_then(|key| key.help.clone());
+                                    div()
+                                        .flex()
+                                        .flex_col()
+                                        .gap_1()
+                                        .child(field_masked(label, input))
+                                        .when_some(help, |this, help| {
+                                            this.child(
+                                                Button::new(format!(
+                                                    "apply-{}-{name}",
+                                                    row.server.id
+                                                ))
                                                 .label("去申请")
                                                 .on_click(
                                                     cx.listener(move |_, _, _, _| open_uri(&help)),
                                                 ),
-                                        )
-                                    })
-                            }))
+                                            )
+                                        })
+                                }))
+                            })
                             .when_some(missing, |this, missing| {
                                 this.child(div().text_sm().text_color(rgb(0xb3261e)).child(missing))
                             })
@@ -446,7 +451,7 @@ impl Render for ServicesView {
                     .children(custom)
                     .child(field("名称", &self.add_title))
                     .child(field("地址（https://…）", &self.add_url))
-                    .child(field("Authorization 请求头（可选）", &self.add_auth))
+                    .child(field_masked("Authorization 请求头（可选）", &self.add_auth))
                     .when_some(url_problem, |this, problem| {
                         this.child(div().text_sm().child(problem.to_string()))
                     })
@@ -514,6 +519,7 @@ impl Render for ServicesView {
                             .child(
                                 Button::new("test-mcp")
                                     .label("测试连接")
+                                    .loading(self.testing)
                                     .on_click(cx.listener(|this, _, _, cx| this.test(cx))),
                             ),
                     )
@@ -523,7 +529,7 @@ impl Render for ServicesView {
 }
 
 /// One of the three 调用前确认 chips; `toggled` is the component library's selected state.
-/// The catalog's 去申请 links open in the browser, like `LocalUriHandler.openUri` in Compose.
+/// The catalog's 去申请 links open in the browser, like the Android host's openUri.
 #[cfg(target_os = "android")]
 fn open_uri(uri: &str) {
     xiaoman_android::session::open_uri(uri);
@@ -548,7 +554,7 @@ fn confirm_chip(
         }))
 }
 
-/// `mcp_confirm_writes` and friends: the policy in the words the Kotlin screen uses.
+/// `mcp_confirm_writes` and friends: the policy in the words the services screen uses.
 fn confirm_label(policy: ConfirmPolicy) -> &'static str {
     match policy {
         ConfirmPolicy::Writes => "会修改数据时确认",

@@ -22,6 +22,7 @@ xiaoman-mcp = { path = "../xiaoman-mcp" }
 xiaoman-memory = { path = "../xiaoman-memory" }
 xiaoman-skills = { path = "../xiaoman-skills" }
 xiaoman-sentinel = { path = "../xiaoman-sentinel" }
+xiaoman-vocab = { path = "../xiaoman-vocab" }
 async-trait.workspace = true
 serde_json.workspace = true
 base64 = "0.22"

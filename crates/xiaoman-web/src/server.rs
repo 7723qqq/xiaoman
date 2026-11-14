@@ -195,7 +195,7 @@ impl WebServer {
             Arc::new(ChatSkillRepository::new(self.options.skills_root.clone()))
                 as Arc<dyn xiaoman_api::SkillRepository>
         });
-        let limiter = StdioLimiter::new(self.options.max_stdio);
+        let limiter = StdioLimiter::new(self.options.max_stdio, self.options.allow_private);
         let transports: TransportFactory = self.transports.clone().unwrap_or_else(|| {
             let limiter = limiter.clone();
             Arc::new(move |server: &xiaoman_mcp::McpServerConfig| limiter.transport(server))
@@ -368,6 +368,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/info", get(info))
         .route("/api/catalog", get(catalog))
         .route("/api/session", post(new_session))
+        .route("/api/vocab", post(vocab))
         .route("/api/chat", post(chat))
         .route("/api/answer", post(answer))
         .route("/api/mcp/test", post(mcp_test))
@@ -545,6 +546,34 @@ async fn new_session(
     }
     let session = state.sessions.lock().unwrap().new_session();
     json_response(StatusCode::OK, &json!({ "sessionId": session.id() }))
+}
+
+async fn vocab(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    body: Result<Bytes, BytesRejection>,
+) -> Response {
+    let Some(session) = state.session(&headers) else {
+        return Problem::not_found("会话已过期").into_response();
+    };
+    let value = match json_body(body) {
+        Ok(value) => value,
+        Err(problem) => return problem.into_response(),
+    };
+    let now = value
+        .get("now")
+        .and_then(Value::as_i64)
+        .unwrap_or_else(xiaoman_api::now_millis);
+    // The same zone the chat tools and ICS reminders use, so the page and the chat agree on "today".
+    let offset = state.options().timezone_offset_minutes;
+    let today = xiaoman_vocab::schedule::local_today(now, Some(offset));
+    match session.vocab().today(&today) {
+        Ok(plan) => {
+            let value = serde_json::to_value(plan).unwrap_or(Value::Null);
+            json_response(StatusCode::OK, &value)
+        }
+        Err(error) => Problem::new(StatusCode::INTERNAL_SERVER_ERROR, error.0).into_response(),
+    }
 }
 
 async fn answer(

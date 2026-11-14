@@ -1,4 +1,4 @@
-//! Port of `hands/src/test/kotlin/dev/xiaoman/hands/NodeCompactorTest.kt`.
+//! The node tree compactor.
 
 use std::cell::RefCell;
 use std::rc::Rc;

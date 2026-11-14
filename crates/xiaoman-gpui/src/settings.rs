@@ -1,6 +1,6 @@
 //! Settings: the two model endpoints, the step cap and the learning toggle.
 //!
-//! Same fields and defaults as the Compose `SettingsScreen` and the desktop
+//! Same fields and defaults as the desktop settings screen and the
 //! `view_model::settings`; saving writes through `Session::save_settings`.
 
 use std::sync::Arc;
@@ -11,10 +11,15 @@ use gpui::{
 use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::input::InputState;
 use gpui_kit::component::switch::Switch;
+use gpui_kit::component::Disableable;
 use xiaoman_app::session::Session;
 use xiaoman_app::settings::{AppSettings, ModelSettings};
 
-use crate::ui::{field, hint, input, title, value};
+use gpui_mobile::KeyboardType;
+
+use crate::ui::{
+    field, field_masked, hint, input, input_masked, input_with_keyboard_type, title, value,
+};
 
 pub struct SettingsView {
     session: Option<Arc<Session>>,
@@ -37,25 +42,45 @@ impl SettingsView {
             .as_ref()
             .map(|session| session.settings())
             .unwrap_or_default();
-        let chat_base = input(window, cx, "Base URL", settings.chat.base_url.as_str());
-        let chat_model = input(window, cx, "模型名称", settings.chat.model.as_str());
-        let chat_key = input(window, cx, "API Key", settings.chat.api_key.as_str());
-        let chat_temperature = input(
+        let chat_base = input_with_keyboard_type(
             window,
             cx,
+            KeyboardType::URL,
+            "Base URL",
+            settings.chat.base_url.as_str(),
+        );
+        let chat_model = input(window, cx, "模型名称", settings.chat.model.as_str());
+        let chat_key = input_masked(window, cx, "API Key", settings.chat.api_key.as_str());
+        let chat_temperature = input_with_keyboard_type(
+            window,
+            cx,
+            KeyboardType::Decimal,
             "Temperature（可选）",
             temperature_text(settings.chat.temperature),
         );
-        let operator_base = input(window, cx, "Base URL", settings.operator.base_url.as_str());
-        let operator_model = input(window, cx, "模型名称", settings.operator.model.as_str());
-        let operator_key = input(window, cx, "API Key", settings.operator.api_key.as_str());
-        let operator_temperature = input(
+        let operator_base = input_with_keyboard_type(
             window,
             cx,
+            KeyboardType::URL,
+            "Base URL",
+            settings.operator.base_url.as_str(),
+        );
+        let operator_model = input(window, cx, "模型名称", settings.operator.model.as_str());
+        let operator_key = input_masked(window, cx, "API Key", settings.operator.api_key.as_str());
+        let operator_temperature = input_with_keyboard_type(
+            window,
+            cx,
+            KeyboardType::Decimal,
             "Temperature（可选）",
             temperature_text(settings.operator.temperature),
         );
-        let max_steps = input(window, cx, "1-200", settings.max_steps.to_string());
+        let max_steps = input_with_keyboard_type(
+            window,
+            cx,
+            KeyboardType::NumberPad,
+            "1-200",
+            settings.max_steps.to_string(),
+        );
         Self {
             session,
             chat_base,
@@ -145,6 +170,9 @@ impl Render for SettingsView {
                 )
             })
             .unwrap_or_default();
+        let valid = valid_steps(&value(&self.max_steps, cx))
+            && valid_temperature(&value(&self.chat_temperature, cx))
+            && valid_temperature(&value(&self.operator_temperature, cx));
         div().size_full().id("settings").overflow_y_scroll().child(
             div()
                 .p_4()
@@ -158,7 +186,7 @@ impl Render for SettingsView {
                 .child(title("聊天模型"))
                 .child(field("Base URL", &self.chat_base))
                 .child(field("模型名称", &self.chat_model))
-                .child(field("API Key", &self.chat_key))
+                .child(field_masked("API Key", &self.chat_key))
                 .child(field("Temperature（可选）", &self.chat_temperature))
                 .when(
                     !valid_temperature(&value(&self.chat_temperature, cx)),
@@ -174,7 +202,7 @@ impl Render for SettingsView {
                 .child(title("操作模型（需支持图片）"))
                 .child(field("Base URL", &self.operator_base))
                 .child(field("模型名称", &self.operator_model))
-                .child(field("API Key", &self.operator_key))
+                .child(field_masked("API Key", &self.operator_key))
                 .child(field("Temperature（可选）", &self.operator_temperature))
                 .when(
                     !valid_temperature(&value(&self.operator_temperature, cx)),
@@ -236,6 +264,7 @@ impl Render for SettingsView {
                     Button::new("save-settings")
                         .primary()
                         .label("保存")
+                        .disabled(!valid)
                         .on_click(cx.listener(|this, _, _, cx| this.save(cx))),
                 )
                 .when_some(self.message.clone(), |this, message| {
@@ -286,7 +315,7 @@ fn temperature_text(temperature: Option<f64>) -> String {
         .unwrap_or_default()
 }
 
-/// Empty or a number in 0..=2: the same rule the Compose form uses.
+/// Empty or a number in 0..=2: the same rule the settings form uses.
 fn valid_temperature(text: &str) -> bool {
     let text = text.trim();
     text.is_empty()

@@ -62,29 +62,142 @@ use super::{
 };
 use gpui_wgpu::GpuContext;
 
-// ── stub: clipboard ───────────────────────────────────────────────────────────
+// ── clipboard ─────────────────────────────────────────────────────────────────
 
-/// Android clipboard (thin wrapper over `ClipboardManager` via JNI).
+/// Android clipboard backed by the system `ClipboardManager` via JNI.
 ///
-/// A real implementation would call into Java via `jni-rs`; for now we use
-/// an in-process string store so the rest of the platform compiles.
+/// GPUI's `Platform::read_from_clipboard` / `write_to_clipboard` land here, so the
+/// component library's copy/paste menu talks to the same clipboard as every other app.
 #[derive(Default)]
-pub struct AndroidClipboard {
-    contents: Option<String>,
-}
+pub struct AndroidClipboard;
 
 impl AndroidClipboard {
     pub fn read(&self) -> Option<String> {
-        self.contents.clone()
+        super::jni::with_env(|env| {
+            let activity = super::jni::activity(env)?;
+            let manager = clipboard_manager(env, &activity)?;
+            let clip = env
+                .call_method(
+                    &manager,
+                    jni::jni_str!("getPrimaryClip"),
+                    jni::jni_sig!("()Landroid/content/ClipData;"),
+                    &[],
+                )
+                .and_then(|v| v.l())
+                .map_err(|e| {
+                    env.exception_clear();
+                    e.to_string()
+                })?;
+            if clip.is_null() {
+                return Ok(None);
+            }
+            let item = env
+                .call_method(
+                    &clip,
+                    jni::jni_str!("getItemAt"),
+                    jni::jni_sig!("(I)Landroid/content/ClipData$Item;"),
+                    &[jni::objects::JValue::Int(0)],
+                )
+                .and_then(|v| v.l())
+                .map_err(|e| {
+                    env.exception_clear();
+                    e.to_string()
+                })?;
+            if item.is_null() {
+                return Ok(None);
+            }
+            let text = env
+                .call_method(
+                    &item,
+                    jni::jni_str!("coerceToText"),
+                    jni::jni_sig!("(Landroid/content/Context;)Ljava/lang/CharSequence;"),
+                    &[jni::objects::JValue::Object(&activity)],
+                )
+                .and_then(|v| v.l())
+                .map_err(|e| {
+                    env.exception_clear();
+                    e.to_string()
+                })?;
+            if text.is_null() {
+                return Ok(None);
+            }
+            let text = super::jni::get_string(env, &text);
+            if text.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(text))
+            }
+        })
+        .ok()
+        .flatten()
     }
 
     pub fn write(&mut self, text: String) {
-        self.contents = Some(text);
+        let _ = super::jni::with_env(|env| {
+            let activity = super::jni::activity(env)?;
+            let label = env.new_string("xiaoman").map_err(|e| e.to_string())?;
+            let j_text = env.new_string(&text).map_err(|e| e.to_string())?;
+            let clip_class = env
+                .find_class(jni::jni_str!("android/content/ClipData"))
+                .map_err(|e| e.to_string())?;
+            let clip_data = env
+                .call_static_method(
+                    &clip_class,
+                    jni::jni_str!("newPlainText"),
+                    jni::jni_sig!(
+                        "(Ljava/lang/CharSequence;Ljava/lang/CharSequence;)Landroid/content/ClipData;"
+                    ),
+                    &[
+                        jni::objects::JValue::Object(&label),
+                        jni::objects::JValue::Object(&j_text),
+                    ],
+                )
+                .and_then(|v| v.l())
+                .map_err(|e| {
+                    env.exception_clear();
+                    e.to_string()
+                })?;
+            if clip_data.is_null() {
+                return Err("ClipData.newPlainText returned null".to_string());
+            }
+            let manager = clipboard_manager(env, &activity)?;
+            env.call_method(
+                &manager,
+                jni::jni_str!("setPrimaryClip"),
+                jni::jni_sig!("(Landroid/content/ClipData;)V"),
+                &[jni::objects::JValue::Object(&clip_data)],
+            )
+            .map_err(|e| {
+                env.exception_clear();
+                e.to_string()
+            })?;
+            Ok(())
+        });
     }
+}
 
-    pub fn clear(&mut self) {
-        self.contents = None;
+/// `activity.getSystemService("clipboard")` → `ClipboardManager`.
+fn clipboard_manager<'local>(
+    env: &mut jni::Env<'local>,
+    activity: &jni::objects::JObject<'local>,
+) -> Result<jni::objects::JObject<'local>, String> {
+    let service_name = env.new_string("clipboard").map_err(|e| e.to_string())?;
+    let manager = env
+        .call_method(
+            activity,
+            jni::jni_str!("getSystemService"),
+            jni::jni_sig!("(Ljava/lang/String;)Ljava/lang/Object;"),
+            &[jni::objects::JValue::Object(&service_name)],
+        )
+        .and_then(|v| v.l())
+        .map_err(|e| {
+            env.exception_clear();
+            e.to_string()
+        })?;
+    if manager.is_null() {
+        return Err("getSystemService(\"clipboard\") returned null".to_string());
     }
+    Ok(manager)
 }
 
 // ── stub: credential store ────────────────────────────────────────────────────

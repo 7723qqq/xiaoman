@@ -55,6 +55,19 @@ fn is_public_v4(ip: Ipv4Addr) -> bool {
 }
 
 fn is_public_v6(ip: Ipv6Addr) -> bool {
+    let segments = ip.segments();
+    // ::ffff:a.b.c.d and ::a.b.c.d reach the same IPv4 host. Classify the embedded address.
+    let octets = ip.octets();
+    let suffix = u32::from_be_bytes([octets[12], octets[13], octets[14], octets[15]]);
+    if segments[0] == 0
+        && segments[1] == 0
+        && segments[2] == 0
+        && segments[3] == 0
+        && segments[4] == 0
+        && (segments[5] == 0xffff || (segments[5] == 0 && suffix > 1))
+    {
+        return is_public_v4(Ipv4Addr::from(suffix));
+    }
     if ip.is_loopback()
         || ip.is_unspecified()
         || ip.is_multicast()
@@ -115,6 +128,11 @@ mod tests {
             "fe80::1",
             "ff02::1",
             "fec0::1",
+            "::ffff:127.0.0.1",
+            "::ffff:10.1.2.3",
+            "::ffff:169.254.169.254",
+            "::127.0.0.1",
+            "::10.1.2.3",
         ] {
             let address: IpAddr = text.parse().expect(text);
             assert!(!is_public_ip(address), "{text}");
@@ -135,6 +153,8 @@ mod tests {
         assert!(!is_public_url("http://[::1]:12345").await);
         assert!(!is_public_url("http://10.1.2.3").await);
         assert!(!is_public_url("http://169.254.169.254").await);
+        assert!(!is_public_url("http://[::ffff:127.0.0.1]:12345").await);
+        assert!(!is_public_url("http://[::ffff:10.1.2.3]:12345").await);
         assert!(!is_public_url("npx").await);
         assert!(!is_public_url("ftp://example.com").await);
     }

@@ -271,15 +271,78 @@ if (typeof document !== 'undefined') {
     }
     function showTab(tab) {
       activeTab = tab;
-      for (const name of ['chat', 'services', 'settings']) $('page-' + name).hidden = name !== tab;
+      for (const name of ['chat', 'vocab', 'services', 'settings']) $('page-' + name).hidden = name !== tab;
       document.querySelectorAll('[data-tab]').forEach(el => {
         const selected = el.dataset.tab === tab;
         el.classList.toggle('active', selected);
         if (selected) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
       });
       if (tab === 'chat') scrollChat();
+      if (tab === 'vocab') loadVocab();
     }
     function scrollChat() { requestAnimationFrame(() => { $('messages').scrollTop = $('messages').scrollHeight; }); }
+    let vocabLoading = false;
+    async function loadVocab() {
+      if (vocabLoading) return;
+      vocabLoading = true;
+      $('vocab-summary').textContent = '正在读取今天的单词…';
+      try {
+        const response = await api('/api/vocab', {method: 'POST', body: {now: Date.now(), offsetMinutes: -new Date().getTimezoneOffset()}});
+        renderVocab(await response.json());
+      } catch (error) {
+        $('vocab-summary').textContent = error.message || '读取失败';
+        $('vocab-prefs').textContent = '';
+        $('vocab-stats').replaceChildren();
+        $('vocab-due').replaceChildren();
+        $('vocab-new').replaceChildren();
+      } finally {
+        vocabLoading = false;
+      }
+    }
+    function renderVocab(data) {
+      if (!data || data.error) { $('vocab-summary').textContent = (data && data.error) || '读取失败'; return; }
+      const stats = data.stats || {};
+      $('vocab-summary').textContent = (data.date || '') + ' · ' + Number(data.due_total || 0) + ' 个到期复习 · 词库还剩 ' + Number(data.remaining || 0) + ' 个';
+      const prefs = data.prefs || {};
+      $('vocab-prefs').textContent = '每天 ' + Number(prefs.daily_new || 0) + ' 个新词 · ' + (prefs.reminder_enabled ? (prefs.reminder_time || '') + ' 提醒' : '提醒未开启');
+      const statsBox = $('vocab-stats');
+      statsBox.replaceChildren();
+      [['已学', stats.learned], ['到期', stats.due_today], ['连续天', stats.streak_days], ['已掌握', stats.mastered]].forEach(([label, value]) => {
+        const box = node('div', 'vocab-stat');
+        box.append(node('strong', '', Number(value || 0)), node('span', '', label));
+        statsBox.append(box);
+      });
+      const due = $('vocab-due');
+      due.replaceChildren();
+      const dueWords = Array.isArray(data.due_words) ? data.due_words : [];
+      if (!dueWords.length) due.append(node('p', 'muted', '今天没有到期复习，可以直接看新词。'));
+      dueWords.forEach(word => due.append(vocabCard(word, '第 ' + (Number(word.stage || 0) + 1) + ' 轮 · 到期 ' + (word.due || '') + ' · 答错 ' + Number(word.wrong || 0) + ' 次')));
+      const fresh = $('vocab-new');
+      fresh.replaceChildren();
+      const newWords = Array.isArray(data.new_words) ? data.new_words : [];
+      if (!newWords.length) fresh.append(node('p', 'muted', Number(data.remaining || 0) > 0 ? '今天的新词已经生成过了，明天再来。' : '词库已经背完了，可以在聊天里添加新词。'));
+      newWords.forEach(word => fresh.append(vocabCard(word, '')));
+    }
+    function meaningText(word) {
+      const meaning = String(word.meaning || '').trim();
+      const pos = String(word.pos || '').trim();
+      const prefixes = ['n.', 'v.', 'vt.', 'vi.', 'adj.', 'adv.', 'prep.', 'conj.', 'pron.', 'num.', 'art.', 'int.', 'aux.', 'modal.'];
+      if (!pos || prefixes.some(prefix => meaning.startsWith(prefix))) return meaning;
+      return pos + ' ' + meaning;
+    }
+    function vocabCard(word, footer) {
+      const card = node('article', 'vocab-card');
+      const top = node('div');
+      top.append(node('span', 'word', word.word));
+      if (word.phonetic) top.append(node('span', 'phonetic', '/' + word.phonetic + '/'));
+      card.append(top);
+      card.append(node('p', '', meaningText(word)));
+      if (word.example) card.append(node('p', '', word.example));
+      if (word.example_zh) card.append(node('p', 'muted', word.example_zh));
+      (Array.isArray(word.collocations) ? word.collocations : []).forEach(pair => card.append(node('p', 'muted', (pair.en || '') + '：' + (pair.zh || ''))));
+      if (footer) card.append(node('p', 'muted', footer));
+      return card;
+    }
     function askAccess(reason) {
       if (accessPromise) return accessPromise;
       const previousFocus = document.activeElement;
@@ -651,6 +714,13 @@ if (typeof document !== 'undefined') {
     }
 
     document.querySelectorAll('[data-tab]').forEach(el => el.addEventListener('click', () => showTab(el.dataset.tab)));
+    $('vocab-refresh').addEventListener('click', () => loadVocab());
+    $('vocab-chat').addEventListener('click', () => {
+      showTab('chat');
+      const input = $('message-input');
+      input.value = '背单词';
+      input.focus();
+    });
     document.querySelectorAll('[data-example]').forEach(el => el.addEventListener('click', () => { $('message-input').value = el.dataset.example; updateChat(); sendMessage(); }));
     $('go-settings').addEventListener('click', () => showTab('settings'));
     $('chat-form').addEventListener('submit', event => { event.preventDefault(); sendMessage(); });

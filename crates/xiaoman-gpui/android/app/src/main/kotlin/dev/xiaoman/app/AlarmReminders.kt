@@ -11,8 +11,8 @@ import android.util.Log
  * `setAndAllowWhileIdle` alarm per reminder, which also fires in Doze and needs no exact-alarm
  * permission. Reboot clears the alarms, exactly like the Kotlin product.
  *
- * Called from Rust through `AlarmReminders.schedule(String, long)` (see
- * `crates/xiaoman-android/src/session.rs`), so the method must stay `@JvmStatic`.
+ * Called from Rust through `AlarmReminders.schedule/cancel(String, long)` (see
+ * `crates/xiaoman-android/src/session.rs`), so both methods must stay `@JvmStatic`.
  */
 object AlarmReminders {
 
@@ -43,6 +43,32 @@ object AlarmReminders {
         )
         alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, atMillis, pending)
         Log.i(TAG, "reminders: scheduled '$text' at $atMillis")
+    }
+
+    /** Removes one alarm previously scheduled with the same text and time. */
+    @JvmStatic
+    fun cancel(text: String, atMillis: Long) {
+        val app = context ?: run {
+            Log.w(TAG, "reminders: not initialized")
+            return
+        }
+        val alarms = app.getSystemService(AlarmManager::class.java) ?: return
+        val id = reminderId(text, atMillis)
+        val intent = Intent(app, ReminderReceiver::class.java).apply {
+            putExtra(ReminderReceiver.EXTRA_ID, id)
+            putExtra(ReminderReceiver.EXTRA_TEXT, text)
+        }
+        val pending = PendingIntent.getBroadcast(
+            app,
+            id,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_NO_CREATE,
+        )
+        if (pending != null) {
+            alarms.cancel(pending)
+            pending.cancel()
+            Log.i(TAG, "reminders: cancelled '$text' at $atMillis")
+        }
     }
 
     /** Stable per (time, text): identical reminders collapse, different texts at one minute don't. */

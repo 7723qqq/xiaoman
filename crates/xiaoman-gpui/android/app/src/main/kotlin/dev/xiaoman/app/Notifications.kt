@@ -12,7 +12,7 @@ import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import dev.xiaoman.host.R
+import dev.xiaoman.app.R
 
 /**
  * The host's notifications, ported from the Kotlin `Notifier`: the status channel belongs to

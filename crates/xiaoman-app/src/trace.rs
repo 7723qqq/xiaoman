@@ -1,5 +1,4 @@
-//! `trace.jsonl`, `audit.jsonl` and `step-<n>.png`, mirroring
-//! `app/src/main/kotlin/dev/xiaoman/app/trace/TraceFormat.kt` and `TraceWriter.kt`.
+//! `trace.jsonl`, `audit.jsonl` and `step-<n>.png`.
 //!
 //! Every trace line has exactly the keys `time, run, kind, step, action, text, ok, decision`, in
 //! that order, with absent values written as JSON null (see `docs/ARCHITECTURE.md`, Traces).
@@ -184,7 +183,7 @@ pub struct TraceWriter {
 
 /// A [`Device`] that hands every observed screenshot to the trace's `step-<n>.png`.
 ///
-/// Mirrors `app/src/main/kotlin/dev/xiaoman/app/trace/RecordingDevice.kt`: the screenshot of the
+/// The screenshot of the
 /// frame the operator saw is written beside `trace.jsonl`, named by the current step.
 pub struct RecordingDevice {
     delegate: Arc<dyn Device>,

@@ -43,7 +43,7 @@ ios-runner chat
 
 ## 一键勾选
 
-内置目录在 `core-mcp/src/main/resources/dev/xiaoman/mcp/catalog.json`，安卓 App 的「服务」页和网页版的「服务」页都读这份目录：打开开关、填 Key、点「测试连接」即可，也可以添加任意 https 的 MCP 服务。需要 Node.js 的 stdio 服务（如 12306）不会出现在安卓 App 上；网页版只在服务器装了 Node.js 时可用，否则显示为不可用，见 [web.md](web.md#12306-火车票需要-nodejs)。
+内置目录在 `crates/xiaoman-mcp/assets/catalog.json`，安卓 App 的「服务」页和网页版的「服务」页都读这份目录：打开开关、填 Key、点「测试连接」即可，也可以添加任意 https 的 MCP 服务。需要 Node.js 的 stdio 服务（如 12306）不会出现在安卓 App 上；网页版只在服务器装了 Node.js 时可用，否则显示为不可用，见 [web.md](web.md#12306-火车票需要-nodejs)。
 
 ## 在安卓 App 上用
 
@@ -53,7 +53,7 @@ ios-runner chat
 
 ## 实现位置
 
-- `core-api/.../Tools.kt`：`ToolProvider`、`ToolResult`、`ToolApprovalGateway` 接口。
-- `core-agent`：把外部工具和内置工具一起交给聊天模型；每次调用都会发出 `AgentEvent.ToolCalled`，聊天界面和轨迹会显示。
-- `core-mcp`：MCP 客户端，支持 Streamable HTTP（JSON 和 SSE 两种响应）和 stdio；包括配置解析、工具名映射、确认策略、结果截断、密钥脱敏，失败的服务器 5 分钟后再重试。
-- 接入点：`ios-runner` 的 `Assembly.kt`、安卓的 `AppGraph.kt`。
+- `crates/xiaoman-api/src/tools.rs`：`ToolProvider`、`ToolResult`、`ToolApprovalGateway` 接口。
+- `xiaoman-agent`：把外部工具和内置工具一起交给聊天模型；每次调用都会发出 `AgentEvent.ToolCalled`，聊天界面和轨迹会显示。
+- `xiaoman-mcp`：MCP 客户端，支持 Streamable HTTP（JSON 和 SSE 两种响应）和 stdio；包括配置解析、工具名映射、确认策略、结果截断、密钥脱敏，失败的服务器 5 分钟后再重试。
+- 接入点：`crates/xiaoman-ios/src/runner/assembly.rs`、`crates/xiaoman-app/src/session.rs` 的 `Session::agent`。

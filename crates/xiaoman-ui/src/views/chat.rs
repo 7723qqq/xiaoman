@@ -1,11 +1,12 @@
-//! `ChatScreen.kt` in GPUI: the header chip, the banners, the folded transcript, the approval
-//! card pinned above the input, and the input row itself.
+//! The chat screen: the header chip, the banners, the folded transcript, the approval card and
+//! the skill draft card pinned above the input, and the input row itself.
 
 use gpui::{
     App, ClickEvent, Context, Div, Entity, EventEmitter, IntoElement, Render, ScrollHandle,
     SharedString, Window, div, prelude::*, px,
 };
 
+use xiaoman_api::SkillAction;
 use xiaoman_app::session::Session;
 
 use crate::theme::{Theme, theme};
@@ -344,6 +345,84 @@ impl ChatView {
         )
     }
 
+    fn skill_draft_card(&self, theme: &Theme, cx: &mut Context<Self>) -> Div {
+        let Some(state) = self.model.skill_draft() else {
+            return div();
+        };
+        let id = state.id;
+        let save = cx.listener(move |this, _event: &ClickEvent, _window, cx| {
+            this.session.answer_skill_draft(id, true);
+            this.sync(cx);
+        });
+        let cancel = cx.listener(move |this, _event: &ClickEvent, _window, cx| {
+            this.session.answer_skill_draft(id, false);
+            this.sync(cx);
+        });
+        let action = match state.action {
+            SkillAction::Create => copy::SKILL_DRAFT_CREATE,
+            SkillAction::Update => copy::SKILL_DRAFT_UPDATE,
+            SkillAction::Delete => copy::SKILL_DRAFT_DELETE,
+        };
+        let body = if state.content.is_empty() {
+            state.previous.clone().unwrap_or_default()
+        } else {
+            state.content.clone()
+        };
+
+        let mut card = column()
+            .w_full()
+            .p_4()
+            .gap_3()
+            .rounded_xl()
+            .bg(theme.secondary_container)
+            .child(
+                title_small(theme, format!("{} · {}", copy::SKILL_DRAFT_TITLE, action))
+                    .text_color(theme.on_secondary_container),
+            )
+            .child(
+                div()
+                    .text_size(Theme::small_size())
+                    .text_color(theme.on_secondary_container)
+                    .child(state.name.clone()),
+            )
+            .child(
+                div()
+                    .id("skill-draft-preview")
+                    .w_full()
+                    .max_h(px(260.))
+                    .overflow_y_scroll()
+                    .text_size(Theme::small_size())
+                    .line_height(Theme::body_line_height())
+                    .text_color(theme.on_secondary_container)
+                    .child(body),
+            );
+        if state.shadows_bundled {
+            card = card.child(
+                div()
+                    .text_size(Theme::small_size())
+                    .text_color(theme.primary)
+                    .child(copy::SKILL_DRAFT_SHADOW),
+            );
+        }
+        if state.action == SkillAction::Delete {
+            card = card.child(
+                div()
+                    .text_size(Theme::small_size())
+                    .text_color(theme.primary)
+                    .child(copy::SKILL_DRAFT_DELETE_WARNING),
+            );
+        }
+
+        div().w_full().p_3().child(
+            card.child(
+                row()
+                    .gap_3()
+                    .child(outlined_button(theme, copy::SKILL_CANCEL, true, cancel))
+                    .child(filled_button(theme, copy::SKILL_SAVE, true, save)),
+            ),
+        )
+    }
+
     fn input_row(&self, theme: &Theme, cx: &mut Context<Self>) -> Div {
         let draft = self.draft.read(cx).text().to_string();
         let can_send = self.model.can_send(&draft);
@@ -421,6 +500,8 @@ impl Render for ChatView {
 
         let bottom = if self.model.approval().is_some() {
             self.approval_card(&theme, cx)
+        } else if self.model.skill_draft().is_some() {
+            self.skill_draft_card(&theme, cx)
         } else {
             let mut area = column().w_full();
             if let Some(status) = self.status_line(&theme, cx) {

@@ -16,3 +16,5 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 [dev-dependencies]
 pollster = "0.4"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tempfile = "3"
+xiaoman-skills = { path = "../xiaoman-skills" }

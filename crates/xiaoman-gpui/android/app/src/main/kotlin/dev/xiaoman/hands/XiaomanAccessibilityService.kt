@@ -185,7 +185,7 @@ class XiaomanAccessibilityService : AccessibilityService() {
      * allowed" unless the app is allowlisted, and the shell sends exactly such a broadcast. A
      * registered receiver is exempt, and the run needs this service connected anyway, so the
      * process is alive whenever the trigger can do anything. The manifest entry stays for explicit
-     * sends (`am broadcast -n dev.xiaoman.host/dev.xiaoman.app.SmokeReceiver`).
+     * sends (`am broadcast -n dev.xiaoman.app/.SmokeReceiver`).
      */
     private fun registerSmokeTrigger() {
         if (smokeReceiver != null) return

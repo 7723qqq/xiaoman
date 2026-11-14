@@ -10,10 +10,11 @@ use xiaoman_api::{
     Agent, AgentConfig, AgentEvent, AgentListener, ChatMessage, ChatRequest, ChatRole, ContentPart,
     Device, LlmClient, MemoryStore, Note, Observation, ReminderScheduler, Sentinel, Skill,
     SkillChannel, SkillRepository, StopSignal, ToolCall, ToolProvider, ToolSpec, UserChannel,
+    VocabEngine,
 };
 
 use crate::agent_tools;
-use crate::chat_tools::{ChatTools, phone_result_json};
+use crate::chat_tools::{ChatTools, SkillEditing, phone_result_json};
 use crate::json_text::JsonText;
 use crate::note_text::NoteText;
 use crate::operator_loop::OperatorLoop;
@@ -39,6 +40,8 @@ pub struct AgentDeps {
     pub sentinel: Arc<dyn Sentinel>,
     pub users: Arc<dyn UserChannel>,
     pub reminders: Arc<dyn ReminderScheduler>,
+    pub skill_editing: Option<SkillEditing>,
+    pub vocab: Option<Arc<dyn VocabEngine>>,
 }
 
 pub struct XiaomanAgent {
@@ -47,6 +50,8 @@ pub struct XiaomanAgent {
     skills: Arc<dyn SkillRepository>,
     users: Arc<dyn UserChannel>,
     reminders: Arc<dyn ReminderScheduler>,
+    skill_editing: Option<SkillEditing>,
+    vocab: Option<Arc<dyn VocabEngine>>,
     config: AgentConfig,
     persona: String,
     clock: Arc<dyn Fn() -> i64 + Send + Sync>,
@@ -79,6 +84,8 @@ impl XiaomanAgent {
             skills: deps.skills,
             users: deps.users,
             reminders: deps.reminders,
+            skill_editing: deps.skill_editing,
+            vocab: deps.vocab,
             config,
             persona: prompts::DEFAULT_PERSONA.to_string(),
             clock: Arc::new(xiaoman_api::now_millis),
@@ -110,22 +117,19 @@ impl XiaomanAgent {
     }
 
     fn built_in_specs(&self) -> Vec<ToolSpec> {
-        let specs = agent_tools::specs();
-        if self.config.phone_tasks {
-            specs
-        } else {
-            specs
-                .into_iter()
-                .filter(|spec| spec.name != agent_tools::PHONE_TASK)
-                .collect()
+        let mut specs =
+            agent_tools::specs_for(self.skill_editing.is_some(), self.config.phone_tasks);
+        if self.vocab.is_some() {
+            specs.extend(agent_tools::vocab_specs());
         }
+        specs
     }
 
     async fn external_specs(&self) -> Vec<ToolSpec> {
         let Some(provider) = &self.external_tools else {
             return Vec::new();
         };
-        let specs = agent_tools::specs();
+        let specs = self.built_in_specs();
         let built_in: Vec<String> = specs.iter().map(|spec| spec.name.clone()).collect();
         let mut seen: Vec<String> = Vec::new();
         let mut out = Vec::new();
@@ -149,6 +153,10 @@ impl XiaomanAgent {
         out.push_str(&prompts::now_section(&ReminderTimes::prompt_now((self
             .clock)(
         ))));
+        if self.vocab.is_some() {
+            out.push_str("\n\n");
+            out.push_str(prompts::VOCAB_HINT);
+        }
         let list = self.skills.list().await;
         if self.config.phone_tasks {
             out.push_str("\n\n");
@@ -389,6 +397,9 @@ impl Agent for XiaomanAgent {
             reminders: self.reminders.clone(),
             external: self.external_tools.clone(),
             phone_tasks: self.config.phone_tasks,
+            skill_editing: self.skill_editing.clone(),
+            vocab: self.vocab.clone(),
+            utc_offset_minutes: self.config.utc_offset_minutes,
         };
 
         let built_in = self.built_in_specs();

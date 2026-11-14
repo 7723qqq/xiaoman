@@ -1,4 +1,4 @@
-//! The ticked MCP services, mirroring `app/src/main/kotlin/dev/xiaoman/app/settings/McpSettingsStore.kt`.
+//! The ticked MCP services and their persistence.
 //!
 //! Catalog ids, titles, URLs and confirm policies go to the plain file; API keys and custom
 //! request headers only to the secret file shared with [`crate::settings::SettingsStore`]. The

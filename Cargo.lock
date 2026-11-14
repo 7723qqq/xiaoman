@@ -10443,8 +10443,10 @@ dependencies = [
  "chrono",
  "pollster 0.4.0",
  "serde_json",
+ "tempfile",
  "tokio",
  "xiaoman-api",
+ "xiaoman-skills",
 ]
 
 [[package]]
@@ -10494,6 +10496,7 @@ dependencies = [
  "xiaoman-memory",
  "xiaoman-sentinel",
  "xiaoman-skills",
+ "xiaoman-vocab",
 ]
 
 [[package]]
@@ -10515,6 +10518,7 @@ version = "0.1.0"
 dependencies = [
  "android-activity",
  "android_logger",
+ "chrono",
  "gpui-kit",
  "gpui-mobile",
  "gpui-pre",
@@ -10548,6 +10552,7 @@ dependencies = [
  "xiaoman-memory",
  "xiaoman-sentinel",
  "xiaoman-skills",
+ "xiaoman-vocab",
 ]
 
 [[package]]
@@ -10622,11 +10627,23 @@ dependencies = [
 name = "xiaoman-ui"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "gpui",
  "serde_json",
  "xiaoman-api",
  "xiaoman-app",
  "xiaoman-mcp",
+]
+
+[[package]]
+name = "xiaoman-vocab"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "xiaoman-api",
 ]
 
 [[package]]
@@ -10658,6 +10675,7 @@ dependencies = [
  "xiaoman-memory",
  "xiaoman-sentinel",
  "xiaoman-skills",
+ "xiaoman-vocab",
 ]
 
 [[package]]

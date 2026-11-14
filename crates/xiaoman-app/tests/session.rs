@@ -181,6 +181,43 @@ fn one_chat_turn_streams_a_reply_and_lands_in_the_items() {
 }
 
 #[test]
+fn the_vocab_engine_is_available_to_the_model_and_persists() {
+    let dir = TempDir::new().unwrap();
+    let llm = ScriptedLlm::new(vec![reply("好，开始背单词。")]);
+    let opened = session(&dir, llm.clone());
+
+    let plan = opened
+        .vocab()
+        .expect("the session has a vocabulary engine")
+        .today("2026-11-13")
+        .expect("the daily plan");
+    assert_eq!(plan.new_words.len(), 15);
+    assert!(dir.path().join("vocab/state.json").exists());
+
+    assert_eq!(SendOutcome::Started, opened.send("背单词"));
+    assert!(opened.wait_idle(Duration::from_secs(5)));
+
+    let request = &llm.requests()[0];
+    assert!(
+        request.tools.iter().any(|tool| tool.name == "vocab_today"),
+        "the vocabulary tools are offered"
+    );
+    let system = request.messages[0].text();
+    assert!(system.contains("## 背单词"), "{system}");
+    assert!(system.contains("vocab_grade"), "{system}");
+
+    drop(opened);
+    let llm = ScriptedLlm::new(vec![reply("好")]);
+    let reopened = session(&dir, llm);
+    let again = reopened
+        .vocab()
+        .expect("the session has a vocabulary engine")
+        .today("2026-11-13")
+        .expect("the persisted daily plan");
+    assert_eq!(again.new_words, plan.new_words);
+}
+
+#[test]
 fn a_tool_call_round_trip_feeds_the_result_back_to_the_model() {
     let dir = TempDir::new().unwrap();
     let llm = ScriptedLlm::new(vec![

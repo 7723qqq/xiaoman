@@ -1,4 +1,4 @@
-//! Task ids double as trace run ids, mirroring `app/src/main/kotlin/dev/xiaoman/app/RunIds.kt`.
+//! Task ids double as trace run ids.
 //!
 //! The debug bridge [`RunIds::prime`]s the next id so `xiaoman run --run-id r1` finds its trace
 //! under `traces/r1/`; otherwise ids look like `app-20261031-120000-a1b2`, stamped in local time

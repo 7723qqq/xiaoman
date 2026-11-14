@@ -8,9 +8,13 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use xiaoman_api::ToolApprovalGateway;
-use xiaoman_mcp::{McpConfig, McpError, McpServerConfig, McpTransport};
+use xiaoman_mcp::{
+    DynResolve, McpConfig, McpError, McpServerConfig, McpTransport, STDIO_ENVIRONMENT,
+    TransportOptions,
+};
 
 use crate::memory::Clock;
+use crate::safe_dns::SafeDns;
 
 pub use xiaoman_mcp::{McpToolProvider, ServerStatus};
 
@@ -30,8 +34,18 @@ pub struct StdioLimiter {
 }
 
 impl StdioLimiter {
-    pub fn new(max: usize) -> Arc<Self> {
-        Self::with_start(max, Arc::new(xiaoman_mcp::create))
+    pub fn new(max: usize, allow_private: bool) -> Arc<Self> {
+        let options = TransportOptions {
+            inherited_environment: Some(STDIO_ENVIRONMENT),
+            dns_resolver: Some(std::sync::Arc::new(DynResolve(std::sync::Arc::new(
+                SafeDns { allow_private },
+            )))),
+            ..Default::default()
+        };
+        Self::with_start(
+            max,
+            Arc::new(move |server| xiaoman_mcp::create_with_options(server, &options)),
+        )
     }
 
     pub fn with_start(max: usize, start: TransportFactory) -> Arc<Self> {
@@ -218,6 +232,37 @@ mod tests {
         );
         drop(b);
         assert_eq!(0, limiter.running());
+    }
+
+    #[test]
+    fn stdio_environment_excludes_web_secrets() {
+        for secret in ["XIAOMAN_WEB_ACCESS_CODE", "XIAOMAN_CLASS_UPSTREAM_KEY"] {
+            assert!(
+                !STDIO_ENVIRONMENT
+                    .iter()
+                    .any(|name| name.eq_ignore_ascii_case(secret)),
+                "{secret} must not reach a stdio MCP child"
+            );
+        }
+        assert!(STDIO_ENVIRONMENT.contains(&"PATH"));
+    }
+
+    #[tokio::test]
+    async fn default_mcp_client_filters_private_dns_answers() {
+        let limiter = StdioLimiter::new(1, false);
+        let mut server = McpServerConfig::new("private");
+        server.url = Some("http://127.0.0.1:1/mcp".to_string());
+        server.timeout_seconds = 1;
+        let transport = limiter.transport(&server).expect("transport");
+        let error = transport
+            .exchange(serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}))
+            .await
+            .unwrap_err();
+        assert!(
+            error.0.contains("不允许访问内网地址") || error.0.contains("请求失败"),
+            "unexpected error: {error}"
+        );
+        transport.close();
     }
 
     #[test]

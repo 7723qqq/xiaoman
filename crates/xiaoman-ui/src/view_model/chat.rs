@@ -1,5 +1,5 @@
-//! The chat screen's rows: `ChatScreen.kt`, `ChatComponents.kt`, `ChatTimeline.kt`,
-//! `ApprovalCard.kt` and the observable half of `AgentSession.kt`, with no toolkit.
+//! The chat screen's rows: the transcript, the run status, the approval card and the skill draft
+//! card, with no toolkit.
 //!
 //! The folding rules themselves already exist in `xiaoman_app::chat_item` (`chat_timeline`,
 //! `chat_rich_text`, `step_text`, `approval_line`) and are reused here rather than rewritten: this
@@ -7,7 +7,7 @@
 
 use std::collections::BTreeSet;
 
-use xiaoman_api::{AgentEvent, ApprovalAnswer, ApprovalScope, Decision};
+use xiaoman_api::{AgentEvent, ApprovalAnswer, ApprovalScope, Decision, SkillAction};
 use xiaoman_app::chat_item::{
     ApprovalTexts, ChatItem, RichText, TimelineRow, approval_line, chat_rich_text, chat_timeline,
     step_text,
@@ -159,6 +159,17 @@ impl Submit {
     }
 }
 
+/// The skill draft card: the full `SKILL.md` and what saving will do.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SkillDraftCard {
+    pub id: i64,
+    pub action: SkillAction,
+    pub name: String,
+    pub content: String,
+    pub previous: Option<String>,
+    pub shadows_bundled: bool,
+}
+
 /// The chat screen's state: the transcript, the run status and the two kinds of pending prompt.
 #[derive(Debug, Clone)]
 pub struct ChatModel {
@@ -168,6 +179,7 @@ pub struct ChatModel {
     status: Option<String>,
     question: Option<PendingQuestion>,
     approval: Option<ApprovalCard>,
+    skill_draft: Option<SkillDraftCard>,
     expanded: BTreeSet<i64>,
     configured: bool,
     /// The Kotlin header requires the accessibility service as well; this port has no Android
@@ -185,6 +197,7 @@ impl Default for ChatModel {
             status: None,
             question: None,
             approval: None,
+            skill_draft: None,
             expanded: BTreeSet::new(),
             configured: false,
             platform_ready: true,
@@ -252,6 +265,10 @@ impl ChatModel {
 
     pub fn approval(&self) -> Option<&ApprovalCard> {
         self.approval.as_ref()
+    }
+
+    pub fn skill_draft(&self) -> Option<&SkillDraftCard> {
+        self.skill_draft.as_ref()
     }
 
     fn take_id(&mut self) -> i64 {
@@ -344,6 +361,14 @@ impl ChatModel {
             responding: false,
             more: keep_more,
         });
+        self.skill_draft = snapshot.skill_draft.as_ref().map(|draft| SkillDraftCard {
+            id: draft.id,
+            action: draft.action,
+            name: draft.name.clone(),
+            content: draft.content.clone(),
+            previous: draft.previous.clone(),
+            shadows_bundled: draft.shadows_bundled,
+        });
     }
 
     /// Ends the run: `AgentSession.launch`'s `finally` block.
@@ -352,6 +377,7 @@ impl ChatModel {
         self.status = None;
         self.question = None;
         self.approval = None;
+        self.skill_draft = None;
     }
 
     /// The chat input: answers a pending question, else starts a turn.
@@ -402,6 +428,7 @@ impl ChatModel {
         self.status = Some("已停止".to_string());
         self.question = None;
         self.approval = None;
+        self.skill_draft = None;
     }
 
     /// Opens the approval card for a decision, if the decision asks the user.
@@ -600,5 +627,43 @@ fn process_row(entries: &[ChatItem], expanded: &BTreeSet<i64>) -> ProcessRow {
             })
             .collect(),
         expanded: expanded.contains(&id),
+    }
+}
+
+#[cfg(test)]
+mod skill_draft_tests {
+    use super::ChatModel;
+    use xiaoman_api::SkillAction;
+    use xiaoman_app::session::{PendingSkillDraft, SessionSnapshot};
+
+    #[test]
+    fn apply_snapshot_keeps_the_skill_draft_and_finish_clears_it() {
+        let snapshot = SessionSnapshot {
+            skill_draft: Some(PendingSkillDraft {
+                id: 7,
+                action: SkillAction::Create,
+                name: "daily-review".to_string(),
+                content: "---
+name: daily-review
+---
+
+正文
+"
+                .to_string(),
+                previous: None,
+                shadows_bundled: false,
+            }),
+            ..SessionSnapshot::default()
+        };
+        let mut model = ChatModel::new();
+        model.apply_snapshot(&snapshot);
+
+        let draft = model.skill_draft().expect("draft");
+        assert_eq!(draft.id, 7);
+        assert_eq!(draft.name, "daily-review");
+        assert!(draft.content.contains("正文"));
+
+        model.finish();
+        assert!(model.skill_draft().is_none());
     }
 }

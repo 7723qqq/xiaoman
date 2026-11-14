@@ -7,12 +7,12 @@ use std::io::{self, BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
-pub const APP_PACKAGE: &str = "dev.xiaoman.host";
+pub const APP_PACKAGE: &str = "dev.xiaoman.app";
 /// `/sdcard/Android/data/<APP_PACKAGE>/files`, the host's `getExternalFilesDir(null)`.
-pub const EXTERNAL_FILES: &str = "/sdcard/Android/data/dev.xiaoman.host/files";
-pub const REMOTE_SKILLS: &str = "/sdcard/Android/data/dev.xiaoman.host/files/skills";
-pub const REMOTE_TRACES: &str = "/sdcard/Android/data/dev.xiaoman.host/files/traces";
-pub const RECEIVER: &str = "dev.xiaoman.host/dev.xiaoman.app.DebugReceiver";
+pub const EXTERNAL_FILES: &str = "/sdcard/Android/data/dev.xiaoman.app/files";
+pub const REMOTE_SKILLS: &str = "/sdcard/Android/data/dev.xiaoman.app/files/skills";
+pub const REMOTE_TRACES: &str = "/sdcard/Android/data/dev.xiaoman.app/files/traces";
+pub const RECEIVER: &str = "dev.xiaoman.app/.debug.DebugReceiver";
 pub const ACTION_RUN: &str = "dev.xiaoman.debug.RUN";
 pub const ACTION_STOP: &str = "dev.xiaoman.debug.STOP";
 pub const ACTION_RELOAD: &str = "dev.xiaoman.debug.RELOAD_SKILLS";

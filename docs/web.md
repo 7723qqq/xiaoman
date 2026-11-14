@@ -78,7 +78,7 @@ XIAOMAN_WEB_ACCESS_CODE=课堂口令 ./target/release/web-server --host 127.0.0.
 
 ## 接口
 
-前端与服务器同源，接口定义在 `web-server/src/main/resources/web/app.js` 顶部注释里：`/api/info`（含 `classTokens`）、`/api/catalog`、`/api/session`、`/api/chat`（SSE 事件流，请求里带 `memory.notes`；课堂模式 `model` 为 `{classToken}`）、`/api/answer`、`/api/mcp/test`，以及领取页用的 `/api/claim/start`、`/api/claim/verify`（不需要访问码，有限流；定义见 `claim.js` 顶部）。服务器端的记忆格式见 `web-server/src/main/kotlin/dev/xiaoman/web/BrowserMemory.kt`。课堂令牌见 `ClassGateway.kt`（`/v1` 转发、限流、记账）、`ClassTokens.kt`（令牌文件）、`ClassTokenAdmin.kt`（`web-server tokens` 命令），自助领取见 `ForumClaims.kt`（论坛读取、验证短语、发放）。
+前端与服务器同源，接口定义在 `crates/xiaoman-web/resources/web/app.js` 顶部注释里：`/api/info`（含 `classTokens`）、`/api/catalog`、`/api/session`、`/api/chat`（SSE 事件流，请求里带 `memory.notes`；课堂模式 `model` 为 `{classToken}`）、`/api/answer`、`/api/mcp/test`，以及领取页用的 `/api/claim/start`、`/api/claim/verify`（不需要访问码，有限流；定义见 `claim.js` 顶部）。服务器端的记忆格式见 `crates/xiaoman-web/src/browser_memory.rs`。课堂令牌见 `crates/xiaoman-web/src/class_gateway.rs`（`/v1` 转发、限流、记账）、`crates/xiaoman-web/src/class_tokens.rs`（令牌文件）、`crates/xiaoman-web/src/tokens_admin.rs`（`web-server tokens` 命令），自助领取见 `crates/xiaoman-web/src/claims.rs`（论坛读取、验证短语、发放）。
 
 ## 测试
 

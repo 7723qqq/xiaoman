@@ -1175,6 +1175,7 @@ fn session_snapshot() -> xiaoman_app::session::SessionSnapshot {
             prompt: "即将点击「确认呼叫」，是否继续？".to_string(),
             reason: "confirmation word '确认呼叫' in target".to_string(),
         }),
+        skill_draft: None,
         configured: true,
     }
 }

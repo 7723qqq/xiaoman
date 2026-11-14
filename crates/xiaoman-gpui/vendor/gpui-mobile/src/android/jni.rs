@@ -1289,7 +1289,12 @@ pub fn set_system_chrome(style: &crate::SystemChromeStyle) {
 /// the IME with it — while GPUI still considers the same field focused and therefore
 /// never asks for the keyboard again. Remembering the request lets a new Activity put
 /// the IME back; see [`restore_keyboard`].
-static SHOWN_KEYBOARD: std::sync::Mutex<Option<crate::KeyboardType>> = std::sync::Mutex::new(None);
+pub(crate) static SHOWN_KEYBOARD: std::sync::Mutex<Option<crate::KeyboardType>> =
+    std::sync::Mutex::new(None);
+
+/// The IME action the app last asked for; `text_input_state_changed` re-applies it.
+pub(crate) static SHOWN_IME_ACTION: std::sync::Mutex<crate::ImeAction> =
+    std::sync::Mutex::new(crate::ImeAction::Default);
 
 /// Re-request the keyboard on the current Activity if one was showing.
 ///
@@ -1308,7 +1313,16 @@ pub(crate) fn restore_keyboard() {
 /// Unlike NativeActivity's key-event-only connection, its InputConnection
 /// supports composing text, commits and Unicode surrounding-text deletion.
 pub fn show_keyboard_android(keyboard_type: crate::KeyboardType) {
+    show_keyboard_android_with_action(keyboard_type, crate::ImeAction::Default);
+}
+
+/// Show the keyboard with a specific keyboard type and IME action.
+pub fn show_keyboard_android_with_action(
+    keyboard_type: crate::KeyboardType,
+    ime_action: crate::ImeAction,
+) {
     *SHOWN_KEYBOARD.lock().expect("poisoned") = Some(keyboard_type);
+    *SHOWN_IME_ACTION.lock().expect("poisoned") = ime_action;
     let kind = match keyboard_type {
         crate::KeyboardType::Default => 0,
         crate::KeyboardType::EmailAddress => 1,
@@ -1317,14 +1331,19 @@ pub fn show_keyboard_android(keyboard_type: crate::KeyboardType) {
         crate::KeyboardType::URL => 4,
         crate::KeyboardType::Decimal => 5,
     };
+    let ime_action = ime_action.as_java();
     let session = super::text_input::new_session();
     if let Err(error) = with_env(|env| {
         let activity = activity(env)?;
         env.call_method(
             &activity,
             jni::jni_str!("gpuiShowKeyboard"),
-            jni::jni_sig!("(IJ)V"),
-            &[JValue::Int(kind), JValue::Long(session as i64)],
+            jni::jni_sig!("(IIJ)V"),
+            &[
+                JValue::Int(kind),
+                JValue::Int(ime_action),
+                JValue::Long(session as i64),
+            ],
         )
         .map_err(|e| e.to_string())?;
         Ok(())
@@ -1358,6 +1377,24 @@ pub fn hide_keyboard_android() {
     if let Some(app) = android_app() {
         app.hide_soft_input(false);
     }
+}
+
+/// Send the app's task to the background, the way the Android back button leaves an app.
+pub fn move_task_to_back() {
+    let _ = with_env(|env| {
+        let activity = activity(env)?;
+        env.call_method(
+            &activity,
+            jni::jni_str!("moveTaskToBack"),
+            jni::jni_sig!("(Z)Z"),
+            &[JValue::Bool(true)],
+        )
+        .map_err(|e| {
+            env.exception_clear();
+            e.to_string()
+        })?;
+        Ok(())
+    });
 }
 
 pub(super) fn reset_keyboard_composition() {
@@ -1401,6 +1438,29 @@ pub unsafe extern "C" fn Java_dev_gpui_mobile_GpuiInputActivity_nativeIme(
         });
         Ok(())
     });
+}
+
+/// Receive the current IME height from `GpuiInputActivity`'s insets listener.
+///
+/// targetSdk 35 enforces edge-to-edge, so `adjustResize` no longer shrinks the window; the IME
+/// height is reported through `WindowInsets` instead. Convert physical pixels to logical pixels
+/// and feed GPUI's `keyboard_height()`, which the UI uses to pad itself above the keyboard.
+///
+/// # Safety
+/// Called by JNI with a valid height in physical pixels.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_dev_gpui_mobile_GpuiInputActivity_nativeImeHeight(
+    _env: *mut c_void,
+    _class: *mut c_void,
+    height_px: i32,
+) {
+    let scale = platform()
+        .and_then(|platform| platform.primary_window())
+        .map(|window| window.scale_factor())
+        .unwrap_or(1.0);
+    if scale > 0.0 {
+        crate::set_keyboard_height(height_px.max(0) as f32 / scale);
+    }
 }
 
 // ── tests ─────────────────────────────────────────────────────────────────────

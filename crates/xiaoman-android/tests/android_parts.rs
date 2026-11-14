@@ -1,4 +1,4 @@
-//! Port of the portable half of `hands/src/test/kotlin/dev/xiaoman/hands/AndroidPartsTest.kt`.
+//! The portable half of the Android device layer.
 //!
 //! `deviceWithoutServiceFailsGracefully` and `installedAppsListsLauncherActivities` stay in the
 //! Kotlin suite: they need a Robolectric `Context` and the JNI-backed device, which this pass does

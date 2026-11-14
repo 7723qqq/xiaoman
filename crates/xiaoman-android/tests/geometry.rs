@@ -1,4 +1,4 @@
-//! Port of `hands/src/test/kotlin/dev/xiaoman/hands/GeometryTest.kt`.
+//! Screen geometry and coordinate normalization.
 
 use xiaoman_android::geometry::{
     PxRect, Stroke, TAP_MS, denormalize, long_press_ms, looks_all_black, normalize_axis,

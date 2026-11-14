@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/xiaoman-api", "crates/xiaoman-sentinel", "crates/xiaoman-llm", "crates/xiaoman-memory", "crates/xiaoman-skills", "crates/xiaoman-agent", "crates/xiaoman-mcp", "crates/xiaoman-web", "crates/xiaoman-ios", "crates/xiaoman-android", "crates/xiaoman-app", "crates/xiaoman-ui", "crates/xiaoman-cli", "crates/xiaoman-gpui"]
+members = ["crates/xiaoman-api", "crates/xiaoman-sentinel", "crates/xiaoman-llm", "crates/xiaoman-memory", "crates/xiaoman-skills", "crates/xiaoman-vocab", "crates/xiaoman-agent", "crates/xiaoman-mcp", "crates/xiaoman-web", "crates/xiaoman-ios", "crates/xiaoman-android", "crates/xiaoman-app", "crates/xiaoman-ui", "crates/xiaoman-cli", "crates/xiaoman-gpui"]
 
 [workspace.package]
 version = "0.1.0"

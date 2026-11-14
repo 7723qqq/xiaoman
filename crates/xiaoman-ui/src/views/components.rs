@@ -1,4 +1,4 @@
-//! The Material-ish pieces the Compose screens take for granted: a surface card, a banner, filled
+//! The Material-ish pieces the screens use: a surface card, a banner, filled
 //! and outlined buttons, a switch, a chip and a divider.
 //!
 //! GPUI 0.2 has no widget library, so these are plain `div`s. They take the click handler already

@@ -26,6 +26,13 @@
       <div id="thinking" class="thinking" role="status" hidden><span class="thinking-dot"></span>思考中…</div>
       <form id="chat-form" class="composer"><label class="sr-only" for="message-input">发送消息</label><textarea id="message-input" placeholder="和小满说点什么" rows="1" enterkeyhint="enter" maxlength="20000"></textarea><button id="send-button" type="submit" class="primary">发送</button></form>
     </section>
+    <section id="page-vocab" class="page scroll-page" aria-label="背单词" hidden>
+      <div class="page-heading"><div><h1>背单词</h1><p>每天一组新词，按艾宾浩斯曲线复习。</p></div><button id="vocab-refresh" type="button">刷新</button></div>
+      <section class="panel"><div id="vocab-summary" class="muted">正在读取今天的单词…</div><div id="vocab-stats" class="vocab-stats"></div><p id="vocab-prefs" class="muted"></p></section>
+      <section class="panel"><h2>今天要复习</h2><div id="vocab-due"></div></section>
+      <section class="panel"><h2>今天的新词</h2><div id="vocab-new"></div></section>
+      <div class="toolbar"><button id="vocab-chat" type="button" class="primary">去聊天背单词</button></div>
+    </section>
     <section id="page-services" class="page scroll-page" aria-label="服务" hidden>
       <div class="page-heading"><div><h1>连接你的服务</h1><p>勾选后，小满可以直接调用这些服务查询或办事。</p></div><span id="enabled-count" class="badge">已启用 0</span></div>
       <div class="toolbar"><button id="recommend" type="button">推荐组合：高德 + AI 热点</button><button id="test-mcp" type="button" class="primary">测试连接</button></div>
@@ -68,7 +75,7 @@
       <p class="version">小满 <span id="version">版本加载中…</span></p>
     </section>
   </main>
-  <nav class="bottom-nav" aria-label="主导航"><button type="button" data-tab="chat" class="active" aria-current="page"><span aria-hidden="true">◌</span>聊天</button><button type="button" data-tab="services"><span aria-hidden="true">⌘</span>服务</button><button type="button" data-tab="settings"><span aria-hidden="true">⚙</span>设置</button></nav>
+  <nav class="bottom-nav" aria-label="主导航"><button type="button" data-tab="chat" class="active" aria-current="page"><span aria-hidden="true">◌</span>聊天</button><button type="button" data-tab="vocab"><span aria-hidden="true">A</span>背单词</button><button type="button" data-tab="services"><span aria-hidden="true">⌘</span>服务</button><button type="button" data-tab="settings"><span aria-hidden="true">⚙</span>设置</button></nav>
   <div id="access-overlay" class="overlay" hidden><section class="access-card" role="dialog" aria-modal="true" aria-labelledby="access-title"><h2 id="access-title">欢迎使用小满</h2><p id="access-description">请输入服务器的访问码。</p><form id="access-form" class="fields"><label>访问码<input id="access-input" type="password" required autocomplete="off"></label><div class="toolbar"><button type="button" id="access-cancel">取消</button><button type="submit" class="primary">连接</button></div></form></section></div>
   <noscript>请在 Safari 设置中开启 JavaScript，然后重新打开小满。</noscript>
 </body>

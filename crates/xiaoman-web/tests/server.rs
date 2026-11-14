@@ -198,6 +198,37 @@ fn types(events: &[Value]) -> Vec<&str> {
 }
 
 #[tokio::test]
+async fn vocab_route_returns_and_reuses_the_daily_plan() {
+    let server = TestServer::start(WebOptions::default()).await;
+    let session = server.new_session().await;
+    let request = |session: &str| {
+        server
+            .client
+            .post(format!("{}/api/vocab", server.base))
+            .header("x-xiaoman-session", session)
+            .json(&json!({"now": 1_763_000_000_000i64, "offsetMinutes": 480}))
+    };
+
+    let response = request(&session).send().await.expect("vocab request");
+    assert_eq!(response.status(), 200);
+    let body: Value = response.json().await.expect("vocab json");
+    assert_eq!(body["new_words"].as_array().expect("new words").len(), 15);
+    assert_eq!(body["stats"]["learned"], 15);
+    assert_eq!(body["due_total"], 0);
+    assert!(body["new_words"][0]["word"].is_string());
+    assert!(body["new_words"][0]["meaning"].is_string());
+    assert_eq!(body["prefs"]["daily_new"], 15);
+
+    let response = request(&session)
+        .send()
+        .await
+        .expect("second vocab request");
+    let again: Value = response.json().await.expect("second vocab json");
+    assert_eq!(again["new_words"], body["new_words"]);
+    assert_eq!(again["stats"]["learned"], 15);
+}
+
+#[tokio::test]
 async fn chat_streams_the_model_reply_and_redacts_credentials() {
     let server = TestServer::start(WebOptions::default()).await;
     let session = server.new_session().await;

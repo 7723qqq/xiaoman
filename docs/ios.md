@@ -2,17 +2,19 @@
 
 iOS 限制 App 读取和操作其他 App 的界面，因此无法像 Android 那样，在 iPhone 上装一个小满 App 就直接操作淘宝、设置等应用。本方案需要一台 Mac，通过 Apple 的 UI 测试工具控制你自己的 iPhone。
 
-Mac 上的 JVM 命令行 `ios-runner` 负责聊天、模型请求、记忆、技能、安全确认和 Agent 操作循环，复用 `core-*` 模块。`ios-hands` 把点击、输入、截图等请求交给 iPhone 上的 WebDriverAgent（下文简称 WDA）。WDA 是 Appium 维护的 XCTest UI 测试 runner，由 Xcode 构建、签名并在手机上运行。
+Mac 上的 `ios-runner`（`crates/xiaoman-ios`）负责聊天、模型请求、记忆、技能、安全确认和 Agent 操作循环；其中的 `WdaDevice` 把点击、输入、截图等请求交给 iPhone 上的 WebDriverAgent（下文简称 WDA）。WDA 是 Appium 维护的 XCTest UI 测试 runner，由 Xcode 构建、签名并在手机上运行。
+
+> 以下命令里的 `ios-runner` 指 `cargo run -p xiaoman-ios --bin ios-runner --`（首次会自动编译）。
 
 ```text
-Mac：ios-runner → 模型与安全检查 → ios-hands
+Mac：ios-runner → 模型与安全检查 → WdaDevice
                                   ↓ HTTP，127.0.0.1:8100
                              USB 端口转发
                                   ↓
 iPhone：WDA（8100）→ 当前 App 的界面
 ```
 
-Mac 负责决策并发出操作，WDA 在 iPhone 上执行。运行期间手机屏幕会被测试控制，Mac、数据线和手机都需要保持连接。这是一套开发试用方案；`ios-runner` 命令与配置的实际支持范围以 `ios-runner --help` 为准。
+Mac 负责决策并发出操作，WDA 在 iPhone 上执行。运行期间手机屏幕会被测试控制，Mac、数据线和手机都需要保持连接。这是一套开发试用方案；`ios-runner` 命令与配置的实际支持范围以 `--help` 为准。
 
 ## 先准备好这些
 

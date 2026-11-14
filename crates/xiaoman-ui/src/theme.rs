@@ -6,7 +6,7 @@ use gpui::{FontWeight, Hsla, Pixels, px, rgb};
 /// `Green = Color(0xFF1E6B52)`.
 pub const GREEN: u32 = 0x1E6B52;
 
-/// One color role of the Compose `ColorScheme`, resolved for light or dark.
+/// One color role of the theme, resolved for light or dark.
 #[derive(Debug, Clone, Copy)]
 pub struct Theme {
     pub light: bool,

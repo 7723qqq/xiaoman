@@ -1,6 +1,5 @@
 //! The one conversation with the agent: a chat turn at a time, parked questions and approvals, and
-//! the persisted stores it runs on. Mirrors `app/src/main/kotlin/dev/xiaoman/app/session/AgentSession.kt`
-//! plus the parts of `AppGraph.kt` that build the agent and its stores.
+//! the persisted stores it runs on, and the wiring that builds the agent and its stores.
 //!
 //! The session owns a small tokio runtime: [`Session::send`] starts one turn on it, the turn's
 //! [`AgentListener`] maps every [`AgentEvent`] to a [`ChatItem`] (the same mapping the chat screen
@@ -25,12 +24,13 @@ use std::time::{Duration, Instant};
 use async_trait::async_trait;
 use tokio::sync::{broadcast, oneshot};
 use xiaoman_agent::prompts::NO_PHONE_PERSONA;
-use xiaoman_agent::{AgentDeps, XiaomanAgent};
+use xiaoman_agent::{AgentDeps, SkillEditing, XiaomanAgent};
 use xiaoman_api::{
     Action, ActionResult, Agent, AgentConfig, AgentEvent, AgentListener, AppInfo, ApprovalAnswer,
     ApprovalError, ApprovalGateway, ApprovalRequest, ApprovalScope, Device, DeviceError, LlmClient,
     MemoryError, MemoryStore, ModelConfig, ModelRole, Note, ReminderScheduler, ScreenState,
-    SearchHit, Skill, SkillLoadResult, SkillRepository, StopSignal, UserChannel,
+    SearchHit, Skill, SkillAction, SkillAuthoring, SkillDraft, SkillDraftAnswer, SkillDraftGateway,
+    SkillLoadResult, SkillRepository, StopSignal, UserChannel, VocabEngine,
 };
 use xiaoman_llm::OpenAiCompatibleClient;
 use xiaoman_mcp::{
@@ -39,7 +39,8 @@ use xiaoman_mcp::{
 };
 use xiaoman_memory::FileMemoryStore;
 use xiaoman_sentinel::PolicySentinel;
-use xiaoman_skills::DirectorySkillRepository;
+use xiaoman_skills::{DirectorySkillAuthoring, DirectorySkillRepository};
+use xiaoman_vocab::{FileVocabStore, VocabEngineImpl, WordBook};
 
 use crate::chat_item::{ApprovalTexts, ChatItem, approval_line, step_text};
 use crate::mcp_settings::McpSettingsStore;
@@ -263,6 +264,17 @@ pub struct PendingApproval {
     pub reason: String,
 }
 
+/// One skill draft waiting for the chat screen's save/cancel card.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PendingSkillDraft {
+    pub id: i64,
+    pub action: SkillAction,
+    pub name: String,
+    pub content: String,
+    pub previous: Option<String>,
+    pub shadows_bundled: bool,
+}
+
 /// Everything the screens read from the session at one moment.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct SessionSnapshot {
@@ -271,6 +283,7 @@ pub struct SessionSnapshot {
     pub status: Option<String>,
     pub question: Option<PendingQuestion>,
     pub approval: Option<PendingApproval>,
+    pub skill_draft: Option<PendingSkillDraft>,
     pub configured: bool,
 }
 
@@ -294,6 +307,12 @@ struct ApprovalSlot {
     answer: Option<oneshot::Sender<ApprovalAnswer>>,
 }
 
+struct SkillDraftSlot {
+    id: i64,
+    draft: SkillDraft,
+    answer: Option<oneshot::Sender<SkillDraftAnswer>>,
+}
+
 struct State {
     items: Vec<ChatItem>,
     next_id: i64,
@@ -301,6 +320,7 @@ struct State {
     status: Option<String>,
     question: Option<QuestionSlot>,
     approval: Option<ApprovalSlot>,
+    skill_draft: Option<SkillDraftSlot>,
 }
 
 impl Default for State {
@@ -312,6 +332,7 @@ impl Default for State {
             status: None,
             question: None,
             approval: None,
+            skill_draft: None,
         }
     }
 }
@@ -382,6 +403,7 @@ impl Shared {
         // Dropping the senders wakes `ask`/`request` if the turn panicked while a prompt was open.
         state.question = None;
         state.approval = None;
+        state.skill_draft = None;
         state.busy = false;
         state.status = None;
         drop(state);
@@ -408,6 +430,11 @@ impl Shared {
         if let Some(slot) = state.approval.take() {
             if let Some(sender) = slot.answer {
                 let _ = sender.send(ApprovalAnswer::once(false));
+            }
+        }
+        if let Some(slot) = state.skill_draft.take() {
+            if let Some(sender) = slot.answer {
+                let _ = sender.send(SkillDraftAnswer::Cancel);
             }
         }
         state.status = Some(STOPPED_TEXT.to_string());
@@ -462,6 +489,37 @@ impl Shared {
             Some(sender) => {
                 self.changed();
                 sender.send(answer).is_ok()
+            }
+            None => false,
+        }
+    }
+
+    /// Answers the parked skill draft only when `draft_id` is the one on screen.
+    fn answer_skill_draft(&self, draft_id: i64, save: bool) -> bool {
+        let sender = {
+            let mut state = self.lock();
+            if !state
+                .skill_draft
+                .as_ref()
+                .is_some_and(|slot| slot.id == draft_id)
+            {
+                return false;
+            }
+            let Some(slot) = state.skill_draft.take() else {
+                return false;
+            };
+            slot.answer
+        };
+        match sender {
+            Some(sender) => {
+                self.changed();
+                sender
+                    .send(if save {
+                        SkillDraftAnswer::Save
+                    } else {
+                        SkillDraftAnswer::Cancel
+                    })
+                    .is_ok()
             }
             None => false,
         }
@@ -572,6 +630,14 @@ impl Shared {
                 prompt: slot.prompt.clone(),
                 reason: slot.reason.clone(),
             }),
+            skill_draft: state.skill_draft.as_ref().map(|slot| PendingSkillDraft {
+                id: slot.id,
+                action: slot.draft.action,
+                name: slot.draft.name.clone(),
+                content: slot.draft.content.clone(),
+                previous: slot.draft.previous.clone(),
+                shadows_bundled: slot.draft.shadows_bundled,
+            }),
             configured,
         }
     }
@@ -588,6 +654,48 @@ struct Approvals {
 impl ApprovalGateway for Approvals {
     async fn request(&self, request: ApprovalRequest) -> Result<ApprovalAnswer, ApprovalError> {
         self.shared.request(request, &self.texts).await
+    }
+}
+
+/// Parks skill drafts on the same shared state as the other prompts.
+struct SkillDrafts {
+    shared: Arc<Shared>,
+}
+
+#[async_trait]
+impl SkillDraftGateway for SkillDrafts {
+    async fn request(&self, draft: SkillDraft) -> Result<SkillDraftAnswer, String> {
+        if self.shared.stopped() {
+            return Err(STOPPED_TEXT.to_string());
+        }
+        let (sender, receiver) = oneshot::channel();
+        let (id, previous) = {
+            let mut state = self.shared.lock();
+            if state.skill_draft.is_some() {
+                return Err("已有技能草稿在等待确认".to_string());
+            }
+            let id = state.take_id();
+            let previous = state.status.clone();
+            state.status = Some(format!("等待确认技能草稿：{}", draft.name));
+            state.skill_draft = Some(SkillDraftSlot {
+                id,
+                draft,
+                answer: Some(sender),
+            });
+            (id, previous)
+        };
+        self.shared.changed();
+        let answer = receiver.await;
+        let mut state = self.shared.lock();
+        if state.skill_draft.as_ref().is_some_and(|slot| slot.id == id) {
+            state.skill_draft = None;
+        }
+        if !self.shared.stopped() {
+            state.status = previous;
+        }
+        drop(state);
+        self.shared.changed();
+        answer.map_err(|_| STOPPED_TEXT.to_string())
     }
 }
 
@@ -743,6 +851,16 @@ impl ReminderScheduler for RecordingReminders {
             inner.schedule(text, at_millis);
         }
     }
+
+    fn cancel(&self, text: &str, at_millis: i64) {
+        self.scheduled
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .retain(|(scheduled, millis)| !(scheduled == text && *millis == at_millis));
+        if let Some(inner) = &self.inner {
+            inner.cancel(text, at_millis);
+        }
+    }
 }
 
 impl fmt::Debug for RecordingReminders {
@@ -771,8 +889,11 @@ struct Inner {
     mcp: Mutex<McpSettingsStore>,
     memory: Arc<FileMemoryStore>,
     skills: Arc<DirectorySkillRepository>,
+    authoring: Arc<DirectorySkillAuthoring>,
+    drafts: Arc<SkillDrafts>,
     sentinel: Arc<PolicySentinel>,
     reminders: Arc<RecordingReminders>,
+    vocab: Option<Arc<dyn VocabEngine>>,
     trace: Arc<TraceWriter>,
     secrets: Arc<Mutex<Vec<String>>>,
     llm: LlmFactory,
@@ -859,10 +980,16 @@ impl Session {
                 roots.push(examples);
             }
         }
-        roots.push(skills_dir);
+        roots.push(skills_dir.clone());
+        // The last root is always the user's folder; everything before it is read-only.
+        let bundled_roots = roots[..roots.len() - 1].to_vec();
+        let authoring = Arc::new(DirectorySkillAuthoring::new(bundled_roots, skills_dir));
         let skills = Arc::new(DirectorySkillRepository::new(roots));
 
         let shared = Arc::new(Shared::new());
+        let drafts = Arc::new(SkillDrafts {
+            shared: shared.clone(),
+        });
         let approvals = Arc::new(Approvals {
             shared: shared.clone(),
             texts: ApprovalTexts::default(),
@@ -886,6 +1013,16 @@ impl Session {
             Some(inner) => RecordingReminders::wrapping(inner),
             None => RecordingReminders::default(),
         });
+        let vocab: Option<Arc<dyn VocabEngine>> = {
+            let store = Arc::new(FileVocabStore::new(data_dir.join("vocab/state.json")));
+            match VocabEngineImpl::open(WordBook::bundled(), store) {
+                Ok(engine) => Some(Arc::new(engine)),
+                Err(error) => {
+                    eprintln!("背单词引擎不可用：{error}");
+                    None
+                }
+            }
+        };
 
         let inner = Arc::new(Inner {
             data_dir,
@@ -895,8 +1032,11 @@ impl Session {
             mcp: Mutex::new(mcp),
             memory,
             skills,
+            authoring,
+            drafts,
             sentinel,
             reminders,
+            vocab,
             trace,
             secrets,
             llm: config.llm_factory,
@@ -910,6 +1050,13 @@ impl Session {
         let session = Self { inner };
         // Load the skills once, so the screen and the system prompt start warm.
         session.blocking(session.inner.skills.reload());
+        if let Some(vocab) = &session.inner.vocab {
+            vocab.reschedule_reminders(
+                xiaoman_api::now_millis(),
+                None,
+                session.inner.reminders.as_ref(),
+            );
+        }
         Ok(session)
     }
 
@@ -923,6 +1070,17 @@ impl Session {
 
     pub fn skills_dir(&self) -> PathBuf {
         self.inner.data_dir.join("skills")
+    }
+
+    /// The gateway a chat tool uses to park a skill draft; the UI answers with
+    /// [`Session::answer_skill_draft`].
+    pub fn skill_draft_gateway(&self) -> Arc<dyn SkillDraftGateway> {
+        self.inner.drafts.clone()
+    }
+
+    /// Saves or cancels the parked skill draft when `draft_id` is the one on screen.
+    pub fn answer_skill_draft(&self, draft_id: i64, save: bool) -> bool {
+        self.inner.shared.answer_skill_draft(draft_id, save)
     }
 
     pub fn traces_dir(&self) -> PathBuf {
@@ -1247,6 +1405,11 @@ impl Session {
         self.blocking(async move { memory.delete(&identifier).await })
     }
 
+    /// The vocabulary engine, shared with the screens and the chat tools.
+    pub fn vocab(&self) -> Option<Arc<dyn VocabEngine>> {
+        self.inner.vocab.clone()
+    }
+
     pub fn skills_list(&self) -> Vec<Skill> {
         let skills = self.inner.skills.clone();
         self.blocking(async move { skills.list().await })
@@ -1302,6 +1465,8 @@ impl Session {
             Arc::new(RecordingDevice::new(raw, self.inner.trace.clone()))
         };
         let phone_tasks = self.inner.device.is_some();
+        let authoring: Arc<dyn SkillAuthoring> = self.inner.authoring.clone();
+        let drafts: Arc<dyn SkillDraftGateway> = self.inner.drafts.clone();
         let persona = match &self.inner.persona {
             Some(persona) => persona.clone(),
             None if phone_tasks => xiaoman_agent::prompts::DEFAULT_PERSONA.to_string(),
@@ -1317,6 +1482,8 @@ impl Session {
                 sentinel: self.inner.sentinel.clone(),
                 users,
                 reminders: self.inner.reminders.clone(),
+                skill_editing: Some(SkillEditing { authoring, drafts }),
+                vocab: self.inner.vocab.clone(),
             },
             AgentConfig {
                 phone_tasks,

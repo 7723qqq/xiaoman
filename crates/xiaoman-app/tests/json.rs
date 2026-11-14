@@ -39,6 +39,7 @@ fn snapshot() -> SessionSnapshot {
             prompt: "即将点击「确认支付」，是否继续？".to_string(),
             reason: "confirmation word '支付'".to_string(),
         }),
+        skill_draft: None,
         configured: true,
     }
 }

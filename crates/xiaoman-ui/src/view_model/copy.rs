@@ -14,6 +14,7 @@ pub const NAV_SKILLS: &str = "技能";
 pub const NAV_MEMORY: &str = "记忆";
 pub const NAV_SETTINGS: &str = "设置";
 pub const NAV_SERVICES: &str = "服务";
+pub const NAV_VOCAB: &str = "背单词";
 pub const BACK: &str = "返回";
 pub const CANCEL: &str = "取消";
 pub const CLEAR: &str = "清除";
@@ -52,6 +53,16 @@ pub const APPROVAL_ONCE: &str = "允许一次";
 pub const APPROVAL_MORE: &str = "更多选项";
 pub const APPROVAL_TASK: &str = "本次任务的同类操作都允许";
 
+// Skill draft card
+pub const SKILL_DRAFT_TITLE: &str = "技能草稿";
+pub const SKILL_DRAFT_CREATE: &str = "新建";
+pub const SKILL_DRAFT_UPDATE: &str = "修改";
+pub const SKILL_DRAFT_DELETE: &str = "删除";
+pub const SKILL_SAVE: &str = "保存";
+pub const SKILL_CANCEL: &str = "取消";
+pub const SKILL_DRAFT_SHADOW: &str = "将新建用户副本覆盖同名内置技能；内置文件不变，也仍然不能删除";
+pub const SKILL_DRAFT_DELETE_WARNING: &str = "将删除用户技能；内置技能不会受影响";
+
 // Process card
 pub const PROCESS_LABEL: &str = "处理过程";
 pub const PROCESS_EXPAND: &str = "展开处理过程";
@@ -61,6 +72,9 @@ pub const PROCESS_COLLAPSE: &str = "收起处理过程";
 pub const SKILLS_TITLE: &str = "技能";
 pub const SKILLS_RELOAD: &str = "重新加载";
 pub const SKILLS_PROBLEMS: &str = "加载问题";
+
+// Vocabulary
+pub const VOCAB_REFRESH: &str = "刷新";
 
 // Memory
 pub const MEMORY_SEARCH_HINT: &str = "搜索记忆";

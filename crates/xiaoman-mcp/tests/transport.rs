@@ -4,7 +4,9 @@ use std::sync::Mutex;
 use serde_json::json;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
-use xiaoman_mcp::{McpHttpTransport, McpServerConfig, McpTransport};
+use xiaoman_mcp::{
+    McpHttpTransport, McpServerConfig, McpStdioTransport, McpTransport, STDIO_ENVIRONMENT,
+};
 
 struct Sequence(Mutex<VecDeque<ResponseTemplate>>);
 
@@ -132,6 +134,39 @@ async fn parses_server_sent_events() {
         .unwrap()
         .expect("response");
     assert_eq!(response["result"]["ok"], json!(true));
+}
+
+#[tokio::test]
+async fn stdio_environment_allowlist_hides_other_variables() {
+    let script = r#"
+import json, os, sys
+for line in sys.stdin:
+    message = json.loads(line)
+    seen = ','.join(sorted(k for k in ('PATH', 'HOME', 'MCP_TEST_VALUE') if k in os.environ))
+    print(json.dumps({'jsonrpc':'2.0','id':message['id'],'result':{'content':[{'type':'text','text':seen}]}}), flush=True)
+"#;
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("server.py");
+    std::fs::write(&path, script).unwrap();
+    let mut config = McpServerConfig::new("local");
+    config.command = Some(if cfg!(windows) { "python" } else { "python3" }.to_string());
+    config.args = vec!["-u".to_string(), path.to_string_lossy().into_owned()];
+    config
+        .env
+        .insert("MCP_TEST_VALUE".into(), "configured".into());
+    config.timeout_seconds = 10;
+    let transport = McpStdioTransport::spawn(config, Some(&["PATH"])).unwrap();
+    let response = transport
+        .exchange(json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{}}))
+        .await
+        .unwrap()
+        .expect("response");
+    assert_eq!(
+        response["result"]["content"][0]["text"],
+        "MCP_TEST_VALUE,PATH"
+    );
+    transport.close();
+    assert!(STDIO_ENVIRONMENT.contains(&"PATH"));
 }
 
 #[tokio::test]

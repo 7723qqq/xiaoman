@@ -12,3 +12,4 @@ pub mod settings;
 pub mod shell;
 pub mod skills;
 pub mod text_field;
+pub mod vocab;

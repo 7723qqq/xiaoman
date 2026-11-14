@@ -89,6 +89,21 @@ pub(super) fn drain(
             }));
             continue;
         }
+        // The IME's Send action (the chat input): route it as an Enter press, which the
+        // focused input emits as `PressEnter` — the app's send gesture.
+        if event.kind == 5 {
+            finish_composition(slot);
+            input(PlatformInput::KeyDown(KeyDownEvent {
+                keystroke: Keystroke {
+                    key: "enter".into(),
+                    key_char: None,
+                    modifiers: Modifiers::default(),
+                },
+                is_held: false,
+                prefer_character_input: false,
+            }));
+            continue;
+        }
         // No RefCell borrow spans a GPUI update (which may replace the handler).
         let Some(mut handler) = slot.borrow_mut().take() else {
             forward_legacy_text(event.kind, &event.text, event.start, |text| {

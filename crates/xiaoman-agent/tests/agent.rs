@@ -181,6 +181,8 @@ fn agent(responses: Vec<ChatResponse>) -> (XiaomanAgent, Arc<Recorder>) {
             sentinel: Arc::new(AllowSentinel),
             users: Arc::new(SilentUsers),
             reminders: Arc::new(NoReminders),
+            skill_editing: None,
+            vocab: None,
         },
         AgentConfig::default(),
     );

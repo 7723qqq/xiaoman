@@ -6,13 +6,14 @@ use std::sync::Arc;
 use xiaoman_agent::{AgentDeps, XiaomanAgent};
 use xiaoman_api::{
     AgentConfig, ApprovalGateway, AuditSink, Device, LlmClient, ModelConfig, ModelRole,
-    ReminderScheduler, Sentinel, SkillRepository, UserChannel,
+    ReminderScheduler, Sentinel, SkillRepository, UserChannel, VocabEngine,
 };
 use xiaoman_llm::LlmClients;
 use xiaoman_mcp::{McpConfig, McpToolProvider, UserChannelApprovals};
 use xiaoman_memory::FileMemoryStore;
 use xiaoman_sentinel::{PolicySentinel, SentinelOptions};
 use xiaoman_skills::DirectorySkillRepository;
+use xiaoman_vocab::{FileVocabStore, VocabEngineImpl, WordBook};
 
 use super::channels::{ConsoleChannels, Output};
 use super::config::RunnerConfig;
@@ -85,6 +86,20 @@ pub async fn assemble(
 
     let users: Arc<dyn UserChannel> = channels;
     let reminders: Arc<dyn ReminderScheduler> = Arc::new(MacReminders::new(out.clone()));
+    let vocab: Option<Arc<dyn VocabEngine>> = {
+        let store = Arc::new(FileVocabStore::new(config.home.join("vocab/state.json")));
+        match VocabEngineImpl::open(WordBook::bundled(), store) {
+            Ok(engine) => {
+                let engine = Arc::new(engine);
+                engine.reschedule_reminders(xiaoman_api::now_millis(), None, reminders.as_ref());
+                Some(engine)
+            }
+            Err(error) => {
+                write_line(&out, &format!("背单词引擎不可用：{error}"));
+                None
+            }
+        }
+    };
 
     // The same `mcp/servers.example.json` shape the `tools` and `call` commands read; its tools
     // become callable by the chat model, with the console's approval card gating writes.
@@ -110,6 +125,8 @@ pub async fn assemble(
             sentinel: sentinel_trait,
             users,
             reminders,
+            skill_editing: None,
+            vocab,
         },
         AgentConfig {
             max_steps: config.max_steps,

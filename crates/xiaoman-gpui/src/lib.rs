@@ -1,7 +1,7 @@
 //! The Android front-end, written in Rust with GPUI + `gpui-mobile`.
 //!
 //! Five screens (chat, skills, services, memory, settings) are GPUI views over the real
-//! `xiaoman_app::Session`, the same session the desktop app and the Compose fallback use. The
+//! `xiaoman_app::Session`, the same session the desktop app uses. The
 //! crate is a workspace member and builds on a desktop for its tests; the Android entry point
 //! (`android_main`) is compiled only for `target_os = "android"`.
 //!
@@ -27,6 +27,7 @@ mod services;
 mod settings;
 mod skills;
 mod ui;
+mod vocab;
 
 pub use app::RootView;
 
@@ -41,7 +42,7 @@ fn open_session(app: &android_activity::AndroidApp) -> Option<Arc<Session>> {
     let data_dir: PathBuf = app
         .external_data_path()
         .or_else(|| app.internal_data_path())
-        .unwrap_or_else(|| PathBuf::from("/data/data/dev.xiaoman.host/files"));
+        .unwrap_or_else(|| PathBuf::from("/data/data/dev.xiaoman.app/files"));
     let bundled = data_dir.join("bundled-skills");
     let bundled = bundled.is_dir().then_some(bundled);
     log::info!("session: opening under {}", data_dir.display());

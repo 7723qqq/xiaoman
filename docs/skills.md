@@ -61,6 +61,8 @@ hour 为 0–23，minute 为 0–59（缺省 0），label 可选。其他 `xiaom
 
 聊天工作流直接在对话里执行，适合排今日开工卡、根据记忆出题、按偏好整理 AI 热点。
 用户的话符合 description 时，聊天模型会按正文说明做，可以配合 memory_*、reminder_set 和外部工具。
+装了背单词引擎时还会提供 `vocab_today` / `vocab_status` / `vocab_grade` / `vocab_prefs` /
+`vocab_add_word`，写法见 `skills/examples/english-vocab`。
 它不会交给 phone_task，也不能设置 apps、deeplinks、confirm_before 或 flow.yaml；即使字段为空也会报问题。
 memory 可以引用笔记，加载时读到的笔记会附在该工作流说明下，读不到的引用忽略。
 
@@ -109,7 +111,7 @@ steps:
 唯一的例外是 `name` 与文件夹名不一致：会报告问题，但技能仍以 `name` 加载。未知字段也算问题，
 这样 `confirm-before` 之类的拼写错误不会悄悄丢掉安全确认词。用户技能加载失败时，同名的内置技能保持生效。
 
-在电脑上可以先用 CLI 校验：`python3 cli/xiaoman.py lint <技能目录>`。
+在电脑上可以先用 CLI 校验：`cargo run -p xiaoman-cli -- lint <技能目录>`。
 
 ## 安全
 
@@ -118,3 +120,16 @@ steps:
 - `apps` 只会缩小技能可以操作的范围。`deeplink` 操作如果与技能的 `deeplinks` 都不匹配（scheme 和 host
   都相同才算匹配），需要用户批准。
 - 密码框和受保护页面一律拒绝操作。付款请留给用户完成；不要把密码或 API Key 写进技能或 `memory`。
+
+## 在聊天里编辑技能
+
+对小满说“帮我加一个技能……”，聊天模型会先用 `skill_read` 看现有内容（修改时），再调用 `skill_edit`
+提交结构化字段。应用渲染出完整的 `SKILL.md`，在聊天页弹出**技能草稿卡**：
+
+- 卡片显示动作（新建 / 修改 / 删除）、技能名和完整 `SKILL.md`；修改时还会提示是否覆盖同名内置技能。
+- 只有点「保存」才写盘；点「取消」、直接退出或进程结束都不会留下文件。
+- 内置技能不能删除；修改内置技能会生成用户副本，内置文件保持不变。
+- 正文里出现手机号、密码或 Key 形状的值会在弹卡前被拒绝，模型需要改写后重新提交。
+- 保存后切到「技能」页即可看到；`flow.yaml` 不会被聊天编辑修改。
+
+网页版与 iOS 不提供这两个工具。

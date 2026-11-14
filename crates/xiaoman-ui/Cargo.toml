@@ -11,4 +11,5 @@ xiaoman-api = { path = "../xiaoman-api" }
 xiaoman-app = { path = "../xiaoman-app" }
 xiaoman-mcp = { path = "../xiaoman-mcp" }
 serde_json.workspace = true
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 gpui = "0.2"

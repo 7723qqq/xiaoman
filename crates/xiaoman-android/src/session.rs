@@ -177,6 +177,30 @@ impl ReminderScheduler for JniReminders {
             ));
         }
     }
+
+    fn cancel(&self, text: &str, at_millis: i64) {
+        let Some(vm) = VM.get() else {
+            log_warn("RustSession: cancel without a JVM");
+            return;
+        };
+        let Ok(mut env) = vm.attach_current_thread() else {
+            log_warn("RustSession: cannot attach the reminder thread");
+            return;
+        };
+        let Ok(text) = env.new_string(text) else {
+            return;
+        };
+        if let Err(error) = env.call_static_method(
+            "dev/xiaoman/app/AlarmReminders",
+            "cancel",
+            "(Ljava/lang/String;J)V",
+            &[JValue::Object(&text), JValue::Long(at_millis)],
+        ) {
+            log_warn(&format!(
+                "RustSession: AlarmReminders.cancel failed: {error}"
+            ));
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -603,7 +627,7 @@ pub fn remove_secret(name: &str) {
     }
 }
 
-/// `nativeOpen(dataDir, bundledSkillsDir)`: opens the one session of this process.
+/// `nativeOpen(dataDir, bundledSkillsDir, notifier)`: opens the one session of this process.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_xiaoman_app_RustSession_nativeOpen(
     mut env: JNIEnv,

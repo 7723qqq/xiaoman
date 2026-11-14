@@ -1,4 +1,4 @@
-//! The settings model and its persistence, mirroring `app/src/main/kotlin/dev/xiaoman/app/settings/AppSettings.kt`
+//! The settings model and its persistence.
 //! and `SettingsStore.kt`: the same keys, defaults, validation and the same recovery from an
 //! unreadable secret file.
 //!

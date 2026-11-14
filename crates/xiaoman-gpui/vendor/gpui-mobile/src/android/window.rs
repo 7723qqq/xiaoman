@@ -1322,7 +1322,13 @@ impl PlatformWindow for AndroidPlatformWindow {
     fn text_input_state_changed(&self, change: gpui::TextInputStateChange) {
         match change {
             gpui::TextInputStateChange::FocusGained => {
-                super::jni::show_keyboard_android(crate::KeyboardType::Default);
+                // Re-apply the last requested keyboard type and IME action (the chat input
+                // asks for Send; the settings fields ask for the default).
+                let keyboard_type = *super::jni::SHOWN_KEYBOARD.lock().expect("poisoned");
+                let ime_action = *super::jni::SHOWN_IME_ACTION.lock().expect("poisoned");
+                if let Some(keyboard_type) = keyboard_type {
+                    super::jni::show_keyboard_android_with_action(keyboard_type, ime_action);
+                }
             }
             gpui::TextInputStateChange::FocusLost => super::jni::hide_keyboard_android(),
             _ => {}

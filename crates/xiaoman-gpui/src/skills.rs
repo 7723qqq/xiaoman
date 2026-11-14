@@ -14,6 +14,7 @@ pub struct SkillsView {
     skills: Vec<Skill>,
     problems: Vec<SkillProblem>,
     message: Option<String>,
+    loading: bool,
 }
 
 impl SkillsView {
@@ -25,15 +26,18 @@ impl SkillsView {
             skills,
             problems,
             message: None,
+            loading: false,
         }
     }
 
-    fn reload(&mut self, cx: &mut Context<Self>) {
+    pub fn reload(&mut self, cx: &mut Context<Self>) {
         let Some(session) = &self.session else {
             self.message = Some("会话还没有打开。".to_string());
             cx.notify();
             return;
         };
+        self.loading = true;
+        cx.notify();
         let result = session.skills_reload();
         self.message = Some(format!(
             "已加载 {} 个技能{}",
@@ -46,6 +50,7 @@ impl SkillsView {
         ));
         self.skills = result.skills;
         self.problems = result.problems;
+        self.loading = false;
         cx.notify();
     }
 }
@@ -73,9 +78,17 @@ impl Render for SkillsView {
                             Button::new("reload-skills")
                                 .primary()
                                 .label("重新加载")
+                                .loading(self.loading)
                                 .on_click(cx.listener(|this, _, _, cx| this.reload(cx))),
                         ),
                 )
+                .when(self.loading, |this| {
+                    this.child(
+                        gpui_kit::component::progress::Progress::new("skills-progress")
+                            .loading(true)
+                            .w_full(),
+                    )
+                })
                 .child(hint("放在数据目录的 skills/ 下，或使用内置示例。"))
                 .when_some(self.message.clone(), |this, message| {
                     this.child(div().text_sm().child(message))

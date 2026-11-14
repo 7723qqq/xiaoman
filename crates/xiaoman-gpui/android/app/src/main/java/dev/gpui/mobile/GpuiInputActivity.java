@@ -9,13 +9,18 @@ import android.text.Selection;
 import android.text.TextWatcher;
 import android.util.Log;
 import android.view.KeyEvent;
+import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 import android.view.inputmethod.BaseInputConnection;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputConnectionWrapper;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 /** NativeActivity with a UI-thread InputConnection for multistage IMEs. */
 public class GpuiInputActivity extends NativeActivity {
@@ -31,9 +36,40 @@ public class GpuiInputActivity extends NativeActivity {
             throw new IllegalStateException(error);
         }
         super.onCreate(state);
+        hideStatusBar();
+        installImeInsetsListener();
     }
 
-    public void gpuiShowKeyboard(int keyboardType, long session) {
+    /**
+     * targetSdk 35 enforces edge-to-edge, so `adjustResize` no longer shrinks the window: the IME
+     * height arrives as a {@link WindowInsets} value instead. Forward it to Rust, which pads the
+     * UI by that amount (the equivalent of Compose's {@code imePadding()}).
+     */
+    private void installImeInsetsListener() {
+        ViewCompat.setOnApplyWindowInsetsListener(getWindow().getDecorView(), (view, insets) -> {
+            nativeImeHeight(insets.getInsets(WindowInsetsCompat.Type.ime()).bottom);
+            return insets;
+        });
+    }
+
+    @Override public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) hideStatusBar();
+    }
+
+    /**
+     * The theme drops {@code windowFullscreen} so `adjustResize` can shrink the window for the IME
+     * (a fullscreen window ignores it). Re-hide the status bar at runtime to keep the edge-to-edge
+     * look the theme used to give.
+     */
+    private void hideStatusBar() {
+        WindowInsetsController controller = getWindow().getInsetsController();
+        if (controller == null) return;
+        controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+        controller.hide(WindowInsets.Type.statusBars());
+    }
+
+    public void gpuiShowKeyboard(int keyboardType, int imeAction, long session) {
         runOnUiThread(() -> {
             if (input == null) {
                 input = new InputProxy();
@@ -51,20 +87,25 @@ public class GpuiInputActivity extends NativeActivity {
                 case 5: type = InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL; break;
             }
             input.setInputType(type);
-            input.setImeOptions(EditorInfo.IME_FLAG_NO_EXTRACT_UI);
+            // The chat input asks for a Send action; the IME's send key then routes to Rust.
+            input.setImeOptions(EditorInfo.IME_FLAG_NO_EXTRACT_UI | imeAction);
             // An EditText only takes focus in touch mode when it is focusable both ways. The
             // first tap also arrives before this 1x1 view has been laid out, so the IME request
             // waits for the next UI loop instead of failing silently.
             input.setFocusable(true);
             input.setFocusableInTouchMode(true);
             input.setShowSoftInputOnFocus(true);
+            // A second tap after the IME was hidden must re-open it: drop the old focus first so
+            // the proxy is really focused again, then force the IME up (SHOW_IMPLICIT alone is
+            // ignored while the view still holds focus).
+            input.clearFocus();
             input.requestFocus();
             final InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
             input.post(() -> {
                 imm.restartInput(input);
-                if (!imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)) {
+                if (!imm.showSoftInput(input, InputMethodManager.SHOW_FORCED)) {
                     Log.w("XiaomanIme", "showSoftInput returned false; retrying after layout");
-                    input.postDelayed(() -> imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT), 100);
+                    input.postDelayed(() -> imm.showSoftInput(input, InputMethodManager.SHOW_FORCED), 100);
                 }
             });
         });
@@ -139,10 +180,10 @@ public class GpuiInputActivity extends NativeActivity {
             }
         }
 
+        // The back key is deliberately not forwarded to Rust here. The IME consumes it to dismiss
+        // itself; forwarding it would also reach the app's `escape` binding and send the app to the
+        // background on the first press.
         @Override public boolean onKeyPreIme(int code, KeyEvent event) {
-            if (code == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_UP) {
-                nativeIme(session, 4, "", 0, 0);
-            }
             return super.onKeyPreIme(code, event);
         }
 
@@ -231,6 +272,13 @@ public class GpuiInputActivity extends NativeActivity {
                         nativeIme(session, 4, "", 0, 0);
                         return true;
                     }
+                    if (action == EditorInfo.IME_ACTION_SEND) {
+                        finishComposingText();
+                        // Route the IME send key to Rust as an Enter press, which the chat
+                        // input treats as "send".
+                        nativeIme(session, 5, "", 0, 0);
+                        return true;
+                    }
                     return commitText("\n", 1);
                 }
             };
@@ -238,4 +286,6 @@ public class GpuiInputActivity extends NativeActivity {
     }
 
     private static native void nativeIme(long session, int kind, String text, int start, int end);
+
+    private static native void nativeImeHeight(int heightPx);
 }

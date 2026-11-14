@@ -1,6 +1,6 @@
 //! iPhone hands and eyes behind a running WebDriverAgent, plus the `ios-runner` command line.
 //!
-//! Port of the Kotlin `ios-hands` and `ios-runner` modules:
+//! The WDA device and the Mac runner:
 //!
 //! - [`WdaClient`]: HTTP transport to WebDriverAgent with a lazy session and one retry after an
 //!   invalid session.

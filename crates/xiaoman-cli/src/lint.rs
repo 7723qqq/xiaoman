@@ -97,7 +97,7 @@ impl Doc<'_> {
                 (if absent { None } else { Some(root) }, true)
             }
             Err(error) => {
-                self.problem(format!("invalid YAML: {}", error.message), Some(error.line));
+                self.problem("invalid YAML", Some(error.line));
                 (None, false)
             }
         }

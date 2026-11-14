@@ -13,12 +13,14 @@ use xiaoman_agent::{AgentDeps, XiaomanAgent};
 use xiaoman_api::{
     Action, ActionResult, AgentConfig, AppInfo, ApprovalAnswer, ApprovalError, ApprovalGateway,
     ApprovalRequest, AuditRecord, AuditSink, Device, DeviceError, LlmClient, ModelConfig,
-    ModelRole, ScreenState, Skill, SkillChannel, SkillLoadResult, SkillRepository, StopSignal,
+    ModelRole, ReminderScheduler, ScreenState, Skill, SkillChannel, SkillLoadResult,
+    SkillRepository, StopSignal, VocabEngine,
 };
 use xiaoman_llm::{ClientOptions, OpenAiCompatibleClient};
 use xiaoman_mcp::McpConfig;
 use xiaoman_sentinel::PolicySentinel;
 use xiaoman_skills::DirectorySkillRepository;
+use xiaoman_vocab::{VocabEngineImpl, WordBook};
 
 use crate::channels::WebChannels;
 use crate::ics::IcsReminders;
@@ -61,6 +63,7 @@ pub struct WebSession {
     id: String,
     last_used: AtomicI64,
     memory: Arc<InMemoryMemory>,
+    vocab: Arc<dyn VocabEngine>,
     channels: Arc<WebChannels>,
     busy: AtomicBool,
     closed: AtomicBool,
@@ -86,6 +89,10 @@ impl WebSession {
             id,
             last_used: AtomicI64::new(now),
             memory: Arc::new(InMemoryMemory::new(clock)),
+            vocab: Arc::new(
+                VocabEngineImpl::in_memory(WordBook::bundled())
+                    .expect("the bundled wordbook must load"),
+            ),
             channels: Arc::new(WebChannels::new()),
             busy: AtomicBool::new(false),
             closed: AtomicBool::new(false),
@@ -109,6 +116,10 @@ impl WebSession {
 
     pub fn memory(&self) -> &Arc<InMemoryMemory> {
         &self.memory
+    }
+
+    pub fn vocab(&self) -> Arc<dyn VocabEngine> {
+        self.vocab.clone()
     }
 
     pub fn channels(&self) -> &Arc<WebChannels> {
@@ -255,6 +266,13 @@ impl WebSession {
             transports,
             &clock,
         ));
+        let reminders: Arc<dyn ReminderScheduler> = Arc::new(IcsReminders::new(
+            self.channels.clone(),
+            offset_minutes,
+            clock.clone(),
+        ));
+        self.vocab
+            .reschedule_reminders((clock)(), Some(offset_minutes), reminders.as_ref());
         let agent = Arc::new(
             XiaomanAgent::new(
                 AgentDeps {
@@ -268,14 +286,13 @@ impl WebSession {
                         Arc::new(NoAudit),
                     )),
                     users: self.channels.clone(),
-                    reminders: Arc::new(IcsReminders::new(
-                        self.channels.clone(),
-                        offset_minutes,
-                        clock.clone(),
-                    )),
+                    reminders,
+                    skill_editing: None,
+                    vocab: Some(self.vocab.clone()),
                 },
                 AgentConfig {
                     phone_tasks: false,
+                    utc_offset_minutes: Some(offset_minutes),
                     ..Default::default()
                 },
             )

@@ -33,11 +33,82 @@ impl std::fmt::Display for McpError {
 
 impl std::error::Error for McpError {}
 
+/// Environment variables a stdio MCP child may inherit; everything else is cleared.
+///
+/// These are the variables a Node.js MCP server needs to start and reach the internet through a
+/// proxy. Secrets such as the web access code never reach the child.
+pub const STDIO_ENVIRONMENT: &[&str] = &[
+    "PATH",
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "TZ",
+    "TMPDIR",
+    "USER",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "NO_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "no_proxy",
+    "NODE_EXTRA_CA_CERTS",
+    "npm_config_cache",
+    "npm_config_registry",
+    "NPM_CONFIG_CACHE",
+    "NPM_CONFIG_REGISTRY",
+    "SystemRoot",
+    "SystemDrive",
+    "windir",
+    "ComSpec",
+    "PATHEXT",
+    "APPDATA",
+    "LOCALAPPDATA",
+    "USERPROFILE",
+    "TEMP",
+    "TMP",
+    "ProgramFiles",
+    "ProgramData",
+    "HOMEDRIVE",
+    "HOMEPATH",
+];
+
+/// How transports are built. The default keeps stdio unrestricted for desktop callers; hosts that
+/// run untrusted catalog commands pass an environment allowlist and a DNS-filtered HTTP client.
+#[derive(Clone, Default)]
+pub struct TransportOptions {
+    pub inherited_environment: Option<&'static [&'static str]>,
+    pub http_client: Option<reqwest::Client>,
+    pub dns_resolver: Option<std::sync::Arc<DynResolve>>,
+}
+
+/// A sized wrapper so a host can inject a dynamic DNS resolver into `reqwest`.
+#[derive(Clone)]
+pub struct DynResolve(pub std::sync::Arc<dyn reqwest::dns::Resolve>);
+
+impl reqwest::dns::Resolve for DynResolve {
+    fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
+        self.0.resolve(name)
+    }
+}
+
 pub fn create(server: &McpServerConfig) -> Result<Arc<dyn McpTransport>, McpError> {
+    create_with_options(server, &TransportOptions::default())
+}
+
+pub fn create_with_options(
+    server: &McpServerConfig,
+    options: &TransportOptions,
+) -> Result<Arc<dyn McpTransport>, McpError> {
     if server.url.is_some() {
-        Ok(Arc::new(McpHttpTransport::new(server.clone())))
+        Ok(Arc::new(McpHttpTransport::with_options(
+            server.clone(),
+            options,
+        )))
     } else {
-        Ok(Arc::new(McpStdioTransport::spawn(server.clone(), None)?))
+        Ok(Arc::new(McpStdioTransport::spawn(
+            server.clone(),
+            options.inherited_environment,
+        )?))
     }
 }
 
@@ -52,15 +123,31 @@ pub struct McpHttpTransport {
 
 impl McpHttpTransport {
     pub fn new(server: McpServerConfig) -> Self {
+        Self::with_options(server, &TransportOptions::default())
+    }
+
+    pub fn with_client(server: McpServerConfig, client: Option<reqwest::Client>) -> Self {
+        let options = TransportOptions {
+            http_client: client,
+            ..Default::default()
+        };
+        Self::with_options(server, &options)
+    }
+
+    fn with_options(server: McpServerConfig, options: &TransportOptions) -> Self {
         let timeout = Duration::from_secs(server.timeout_seconds.max(1) as u64);
-        let client = reqwest::Client::builder()
-            .timeout(timeout)
-            .connect_timeout(timeout)
-            .redirect(reqwest::redirect::Policy::none())
-            // MCP servers are often local; the system proxy would break loopback calls.
-            .no_proxy()
-            .build()
-            .unwrap_or_default();
+        let client = options.http_client.clone().unwrap_or_else(|| {
+            let mut builder = reqwest::Client::builder()
+                .timeout(timeout)
+                .connect_timeout(timeout)
+                .redirect(reqwest::redirect::Policy::none())
+                // MCP servers are often local; the system proxy would break loopback calls.
+                .no_proxy();
+            if let Some(resolver) = options.dns_resolver.clone() {
+                builder = builder.dns_resolver(resolver);
+            }
+            builder.build().unwrap_or_default()
+        });
         let redactor = server.redactor();
         Self {
             server,
@@ -234,7 +321,7 @@ impl McpStdioTransport {
     /// `inherited_environment` limits which variables of this process the child sees (`None` = all).
     pub fn spawn(
         server: McpServerConfig,
-        inherited_environment: Option<&[String]>,
+        inherited_environment: Option<&[&str]>,
     ) -> Result<Self, McpError> {
         let command = server.command.clone().unwrap_or_default();
         let line = command_line(&command, &server.args);

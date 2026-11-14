@@ -1,6 +1,5 @@
 //! The chat list model and its presentation rules, mirroring
-//! `app/src/main/kotlin/dev/xiaoman/app/session/ChatItem.kt` plus the screen-free parts of
-//! `app/src/main/kotlin/dev/xiaoman/app/ui/ChatTimeline.kt` and `ChatComponents.kt`:
+//! The transcript rows plus the screen-free parts of the chat timeline and components:
 //! [`chat_timeline`] folds adjacent progress entries, [`chat_rich_text`] applies the bold and
 //! list markers, and [`approval_line`] is the row the approval card leaves behind.
 //!

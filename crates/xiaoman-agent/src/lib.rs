@@ -14,6 +14,7 @@ pub mod screen_text;
 pub mod task_run;
 pub mod xiaoman_agent;
 
+pub use chat_tools::{ChatTools, SkillEditing};
 pub use flow_runner::is_yes;
 pub use json_text::JsonText;
 pub use note_text::NoteText;

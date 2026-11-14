@@ -1,4 +1,4 @@
-//! Port of `hands/src/test/kotlin/dev/xiaoman/hands/AppLinksTest.kt`.
+//! App links and deeplinks.
 
 use xiaoman_android::app_links::{ACTION_SET_ALARM, AppLinkError, link_for};
 

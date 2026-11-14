@@ -14,7 +14,7 @@ import androidx.core.content.ContextCompat
 import dev.xiaoman.hands.NativeLibrary
 import dev.xiaoman.hands.OverlayHost
 import dev.xiaoman.hands.StatusOverlay
-import dev.xiaoman.host.R
+import dev.xiaoman.app.R
 import java.lang.ref.WeakReference
 
 /**

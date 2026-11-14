@@ -18,7 +18,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import dev.xiaoman.hands.NativeLibrary
-import dev.xiaoman.host.R
+import dev.xiaoman.app.R
 
 /**
  * The `specialUse` foreground service that keeps the process alive while a task runs and shows the

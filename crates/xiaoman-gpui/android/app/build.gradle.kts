@@ -48,11 +48,11 @@ fun linkerEnv(): Map<String, String> {
 }
 
 android {
-    namespace = "dev.xiaoman.host"
+    namespace = "dev.xiaoman.app"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "dev.xiaoman.host"
+        applicationId = "dev.xiaoman.app"
         minSdk = 30
         targetSdk = 35
         versionCode = 1

@@ -9,7 +9,7 @@ fn repo(relative: &str) -> PathBuf {
 }
 
 fn fixture() -> PathBuf {
-    repo("cli/tests/fixtures/skills/ride-home")
+    repo("crates/xiaoman-cli/tests/fixtures/skills/ride-home")
 }
 
 fn msg(file: &str, line: usize, message: &str) -> (String, usize, String) {
@@ -103,7 +103,7 @@ fn invalid_yaml_line() {
     let info = lint_skill(&case.skill("x", "---\nname: x\napps: [a\n---\n", None));
     assert_eq!(info.problems.len(), 1);
     assert_eq!(info.problems[0].line, 3);
-    assert!(info.problems[0].message.starts_with("invalid YAML: "));
+    assert_eq!("invalid YAML", info.problems[0].message);
 }
 
 #[test]

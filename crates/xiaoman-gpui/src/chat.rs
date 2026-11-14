@@ -1,8 +1,9 @@
 //! The chat screen: the folded transcript, an input row and the approval card.
 //!
-//! The timeline uses the same `chat_timeline` fold as the desktop and the Kotlin app: adjacent
+//! The timeline uses the same `chat_timeline` fold as the desktop app: adjacent
 //! progress rows collapse into one 「处理过程」 card, which expands on tap.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -13,9 +14,21 @@ use gpui::{
 };
 use gpui_kit::component::button::Button;
 use gpui_kit::component::input::{InputEvent, Textarea, TextareaState};
-use xiaoman_api::ApprovalScope;
+use gpui_kit::component::Disableable;
+use xiaoman_api::{ApprovalScope, SkillAction};
 use xiaoman_app::chat_item::{chat_rich_text, chat_timeline, ChatItem, TimelineRow};
 use xiaoman_app::session::{SendOutcome, Session, SessionSnapshot};
+
+/// The skill draft card's view state: the full `SKILL.md` and what saving will do.
+#[derive(Clone, PartialEq)]
+struct SkillDraftCard {
+    id: i64,
+    action: SkillAction,
+    name: String,
+    content: String,
+    previous: Option<String>,
+    shadows_bundled: bool,
+}
 
 pub struct ChatView {
     session: Option<Arc<Session>>,
@@ -23,9 +36,14 @@ pub struct ChatView {
     items: Vec<ChatItem>,
     status: Option<String>,
     approval: Option<(i64, String, String)>,
+    /// True between the first approve/deny tap and the card disappearing, so the buttons
+    /// cannot be fired twice.
+    responding: bool,
     question: Option<(String, bool)>,
+    skill_draft: Option<SkillDraftCard>,
     busy: bool,
-    expanded: bool,
+    /// The expanded 「处理过程」 cards, keyed by their first row's id.
+    expanded: HashSet<i64>,
     more_options: bool,
     accessibility: bool,
     notifications: bool,
@@ -42,7 +60,7 @@ impl ChatView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        // The Compose field is minLines 1 / maxLines 4; `auto_grow` grows it the same way.
+        // The input grows from one line to four as you type.
         let input = cx.new(|cx| {
             TextareaState::new(window, cx)
                 .placeholder("说说你想做什么…")
@@ -81,9 +99,11 @@ impl ChatView {
             items: Vec::new(),
             status: None,
             approval: None,
+            responding: false,
             question: None,
+            skill_draft: None,
             busy: false,
-            expanded: false,
+            expanded: HashSet::new(),
             more_options: false,
             accessibility: host_accessibility(),
             notifications: host_notifications(),
@@ -115,19 +135,33 @@ impl ChatView {
             .question
             .as_ref()
             .map(|question| (question.text.clone(), question.takeover));
+        let skill_draft = snapshot.skill_draft.as_ref().map(|draft| SkillDraftCard {
+            id: draft.id,
+            action: draft.action,
+            name: draft.name.clone(),
+            content: draft.content.clone(),
+            previous: draft.previous.clone(),
+            shadows_bundled: draft.shadows_bundled,
+        });
         let busy = snapshot.busy;
         let status = snapshot.status.clone();
         let changed = items != self.items
             || status != self.status
             || approval != self.approval
             || question != self.question
+            || skill_draft != self.skill_draft
             || busy != self.busy;
         if changed {
-            // Mirror the two parked prompts and the run state into the shade. Kotlin owns the
+            // Mirror the two parked prompts and the run state into the shade. The Android host owns the
             // notifications; Rust only names the operation.
             if approval != self.approval {
+                self.responding = false;
                 match &approval {
-                    Some((id, prompt, reason)) => show_approval(*id, prompt, reason),
+                    Some((id, prompt, reason)) => {
+                        show_approval(*id, prompt, reason);
+                        // The approval card replaces the input row: drop the IME with it.
+                        hide_keyboard();
+                    }
                     None => hide_approval(),
                 }
             }
@@ -151,6 +185,7 @@ impl ChatView {
             self.status = status;
             self.approval = approval;
             self.question = question;
+            self.skill_draft = skill_draft;
             self.busy = busy;
             self.scroll.scroll_to_bottom();
         }
@@ -167,10 +202,13 @@ impl ChatView {
         if outcome == SendOutcome::Started {
             start_service();
         }
-        self.input
-            .update(cx, |input, cx| input.set_value("", window, cx));
-        window.blur(cx);
-        hide_keyboard();
+        // Busy (or a blank prompt) keeps the draft, like the old app.
+        if outcome.clears_draft() {
+            self.input
+                .update(cx, |input, cx| input.set_value("", window, cx));
+            window.blur(cx);
+            hide_keyboard();
+        }
         self.scroll.scroll_to_bottom();
         cx.notify();
     }
@@ -180,9 +218,10 @@ impl ChatView {
         let Some((id, _, _)) = self.approval else {
             return;
         };
+        self.responding = true;
         if hide_app() {
             // The screen the agent must see is the one underneath: move this task out of the way
-            // first, like the Compose card does, and give the window animator time to finish.
+            // first, like the approval card does, and give the window animator time to finish.
             let session = session.clone();
             std::thread::spawn(move || {
                 std::thread::sleep(Duration::from_millis(650));
@@ -200,6 +239,7 @@ impl ChatView {
             let Some((id, _, _)) = self.approval else {
                 return;
             };
+            self.responding = true;
             session.deny(id);
             cx.notify();
         }
@@ -216,6 +256,13 @@ impl ChatView {
     fn stop(&mut self, cx: &mut Context<Self>) {
         if let Some(session) = &self.session {
             session.stop();
+            cx.notify();
+        }
+    }
+
+    fn answer_skill_draft(&mut self, save: bool, cx: &mut Context<Self>) {
+        if let (Some(session), Some(draft)) = (&self.session, &self.skill_draft) {
+            session.answer_skill_draft(draft.id, save);
             cx.notify();
         }
     }
@@ -290,7 +337,8 @@ impl ChatView {
         match row {
             TimelineRow::Message(item) => self.item(item).into_any_element(),
             TimelineRow::Process(items) => {
-                let expanded = self.expanded;
+                let key = items.first().map(ChatItem::id).unwrap_or(0);
+                let expanded = self.expanded.contains(&key);
                 let toggle = div()
                     .id("process-toggle")
                     .flex()
@@ -301,8 +349,10 @@ impl ChatView {
                     .cursor_pointer()
                     .child(format!("处理过程 · {}条记录", items.len()))
                     .child(if expanded { "收起" } else { "展开" })
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.expanded = !this.expanded;
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        if !this.expanded.remove(&key) {
+                            this.expanded.insert(key);
+                        }
                         cx.notify();
                     }));
                 div()
@@ -316,6 +366,23 @@ impl ChatView {
                     .into_any_element()
             }
         }
+    }
+}
+
+fn skill_action_label(action: SkillAction) -> &'static str {
+    match action {
+        SkillAction::Create => "新建",
+        SkillAction::Update => "修改",
+        SkillAction::Delete => "删除",
+    }
+}
+
+/// What the card's preview shows: the new SKILL.md, or the current one for a delete.
+fn draft_body(draft: &SkillDraftCard) -> String {
+    if draft.content.is_empty() {
+        draft.previous.clone().unwrap_or_default()
+    } else {
+        draft.content.clone()
     }
 }
 
@@ -377,7 +444,8 @@ fn hide_question() {}
 
 #[cfg(target_os = "android")]
 fn show_keyboard() {
-    gpui_mobile::show_keyboard();
+    // The chat input's IME action is Send: the keyboard's send key submits the message.
+    gpui_mobile::show_keyboard_with_action(gpui_mobile::ImeAction::Send);
 }
 
 #[cfg(not(target_os = "android"))]
@@ -398,8 +466,11 @@ impl Render for ChatView {
             .as_ref()
             .map(|session| session.configured())
             .unwrap_or(false);
-        let attention = self.approval.is_some() || self.question.is_some();
+        let attention =
+            self.approval.is_some() || self.question.is_some() || self.skill_draft.is_some();
         let stopping = self.busy && self.question.is_none();
+        // The send button is inert until there is something to send, like the old app.
+        let can_send = !self.input.read(cx).value().trim().is_empty();
         let ready = configured && self.accessibility;
         let pill = if attention {
             "等你确认"
@@ -545,23 +616,26 @@ impl Render for ChatView {
                             .children(rows),
                     ),
             )
-            .when(self.busy && self.approval.is_none(), |this| {
-                this.child(
-                    div()
-                        .flex_none()
-                        .px_4()
-                        .py_1()
-                        .flex()
-                        .items_center()
-                        .gap_2()
-                        .child(div().text_sm().text_color(rgb(0x1e6b52)).child(status_line))
-                        .child(
-                            Button::new("status-stop")
-                                .label("停止")
-                                .on_click(cx.listener(|this, _, _, cx| this.stop(cx))),
-                        ),
-                )
-            })
+            .when(
+                self.busy && self.approval.is_none() && self.skill_draft.is_none(),
+                |this| {
+                    this.child(
+                        div()
+                            .flex_none()
+                            .px_4()
+                            .py_1()
+                            .flex()
+                            .items_center()
+                            .gap_2()
+                            .child(div().text_sm().text_color(rgb(0x1e6b52)).child(status_line))
+                            .child(
+                                Button::new("status-stop")
+                                    .label("停止")
+                                    .on_click(cx.listener(|this, _, _, cx| this.stop(cx))),
+                            ),
+                    )
+                },
+            )
             .when_some(self.approval.clone(), |this, (_id, prompt, reason)| {
                 this.child(
                     div()
@@ -590,19 +664,24 @@ impl Render for ChatView {
                                 .child(
                                     Button::new("deny")
                                         .label("暂不允许")
+                                        .disabled(self.responding)
                                         .on_click(cx.listener(|this, _, _, cx| this.deny(cx))),
                                 )
-                                .child(Button::new("once").label("允许一次").on_click(
-                                    cx.listener(|this, _, _, cx| {
-                                        this.approve(ApprovalScope::Once, cx)
-                                    }),
-                                )),
+                                .child(
+                                    Button::new("once")
+                                        .label("允许一次")
+                                        .disabled(self.responding)
+                                        .on_click(cx.listener(|this, _, _, cx| {
+                                            this.approve(ApprovalScope::Once, cx)
+                                        })),
+                                ),
                         )
                         .child(if self.more_options {
                             div()
                                 .child(
                                     Button::new("task")
                                         .label("本次任务的同类操作都允许")
+                                        .disabled(self.responding)
                                         .on_click(cx.listener(|this, _, _, cx| {
                                             this.approve(ApprovalScope::Task, cx)
                                         })),
@@ -620,6 +699,65 @@ impl Render for ChatView {
                         }),
                 )
             })
+            .when_some(self.skill_draft.clone(), |this, draft| {
+                let title = format!("技能草稿 · {}", skill_action_label(draft.action));
+                let body = draft_body(&draft);
+                this.child(
+                    div()
+                        .flex_none()
+                        .mx_3()
+                        .mb_2()
+                        .p_3()
+                        .rounded_lg()
+                        .bg(rgb(0xf4f1e4))
+                        .flex()
+                        .flex_col()
+                        .gap_2()
+                        .child(div().text_sm().child(title))
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(rgb(0x637168))
+                                .child(draft.name.clone()),
+                        )
+                        .when(draft.shadows_bundled, |this| {
+                            this.child(div().text_xs().text_color(rgb(0xb3261e)).child(
+                                "将新建用户副本覆盖同名内置技能；内置文件不变，也仍然不能删除",
+                            ))
+                        })
+                        .when(draft.action == SkillAction::Delete, |this| {
+                            this.child(
+                                div()
+                                    .text_xs()
+                                    .text_color(rgb(0xb3261e))
+                                    .child("将删除用户技能；内置技能不会受影响"),
+                            )
+                        })
+                        .child(
+                            div()
+                                .id("skill-draft-content")
+                                .max_h(px(260.))
+                                .overflow_y_scroll()
+                                .p_2()
+                                .rounded_lg()
+                                .bg(rgb(0xffffff))
+                                .child(div().text_xs().child(body)),
+                        )
+                        .child(
+                            div()
+                                .flex()
+                                .gap_2()
+                                .child(Button::new("skill-draft-cancel").label("取消").on_click(
+                                    cx.listener(|this, _, _, cx| {
+                                        this.answer_skill_draft(false, cx)
+                                    }),
+                                ))
+                                .child(Button::new("skill-draft-save").label("保存").on_click(
+                                    cx.listener(|this, _, _, cx| this.answer_skill_draft(true, cx)),
+                                )),
+                        ),
+                )
+            })
             .when(self.question.is_some(), |this| {
                 this.child(
                     div().flex_none().px_4().py_1().child(
@@ -630,38 +768,44 @@ impl Render for ChatView {
                     ),
                 )
             })
-            .when(self.approval.is_none(), |this| {
-                this.child(
-                    div().flex_none().p_3().flex().flex_col().gap_2().child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap_2()
-                            .child(
-                                div()
-                                    .flex_1()
-                                    // A second tap after the IME was dismissed must re-open it:
-                                    // the field is still focused, so no Focus event fires again.
-                                    .on_mouse_down(MouseButton::Left, |_, _, _| show_keyboard())
-                                    .child(Textarea::new(&self.input)),
-                            )
-                            // One button, like the Compose input row: send unless a task runs.
-                            .child(if stopping {
-                                Button::new("send-stop")
-                                    .label("停止")
-                                    .on_click(cx.listener(|this, _, _, cx| this.stop(cx)))
-                                    .into_any_element()
-                            } else {
-                                Button::new("send")
-                                    .label("发送")
-                                    .on_click(
-                                        cx.listener(|this, _, window, cx| this.send(window, cx)),
-                                    )
-                                    .into_any_element()
-                            }),
-                    ),
-                )
-            })
+            .when(
+                self.approval.is_none() && self.skill_draft.is_none(),
+                |this| {
+                    this.child(
+                        div().flex_none().p_3().flex().flex_col().gap_2().child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .gap_2()
+                                .child(
+                                    div()
+                                        .flex_1()
+                                        // A second tap after the IME was dismissed must re-open it:
+                                        // the field is still focused, so no Focus event fires again.
+                                        .on_mouse_down(MouseButton::Left, |_, _, _| show_keyboard())
+                                        .child(Textarea::new(&self.input)),
+                                )
+                                // One button: send unless a task runs.
+                                .child(if stopping {
+                                    Button::new("send-stop")
+                                        .label("停止")
+                                        .on_click(cx.listener(|this, _, _, cx| this.stop(cx)))
+                                        .into_any_element()
+                                } else {
+                                    Button::new("send")
+                                        .label("发送")
+                                        .disabled(!can_send)
+                                        .on_click(
+                                            cx.listener(|this, _, window, cx| {
+                                                this.send(window, cx)
+                                            }),
+                                        )
+                                        .into_any_element()
+                                }),
+                        ),
+                    )
+                },
+            )
     }
 }
 
@@ -686,7 +830,7 @@ fn rich_text(raw: &str, color: Hsla, size: f32) -> StyledText {
     StyledText::new(rich.text).with_default_highlights(&style, highlights)
 }
 
-/// The three starting points of the Compose welcome screen: title, detail, prompt.
+/// The three starting points of the welcome screen: title, detail, prompt.
 const EXAMPLES: [(&str, &str, &str, &str); 3] = [
     (
         "shopping",
@@ -767,4 +911,35 @@ fn hide_app() -> bool {
 #[cfg(not(target_os = "android"))]
 fn hide_app() -> bool {
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn card(action: SkillAction, content: &str, previous: Option<&str>) -> SkillDraftCard {
+        SkillDraftCard {
+            id: 1,
+            action,
+            name: "daily-review".to_string(),
+            content: content.to_string(),
+            previous: previous.map(str::to_string),
+            shadows_bundled: false,
+        }
+    }
+
+    #[test]
+    fn draft_titles_name_the_action() {
+        assert_eq!(skill_action_label(SkillAction::Create), "新建");
+        assert_eq!(skill_action_label(SkillAction::Update), "修改");
+        assert_eq!(skill_action_label(SkillAction::Delete), "删除");
+    }
+
+    #[test]
+    fn draft_body_falls_back_to_the_current_skill_for_delete() {
+        let draft = card(SkillAction::Delete, "", Some("当前内容"));
+        assert_eq!(draft_body(&draft), "当前内容");
+        let draft = card(SkillAction::Create, "新内容", None);
+        assert_eq!(draft_body(&draft), "新内容");
+    }
 }

@@ -29,6 +29,13 @@ pub const CHAT_SKILLS_HEADER: &str = "## 聊天工作流";
 pub const CHAT_SKILLS_HINT: &str = "用户的话符合某个工作流的描述时，直接在对话里按它的说明做，可配合 memory_*、reminder_set 和外部工具；不要交给 phone_task。";
 pub const CHAT_SKILL_PHONE_REFUSED: &str =
     "这是聊天工作流，不能通过 phone_task 执行，请直接在对话里按技能说明完成";
+pub const VOCAB_HINT: &str = "## 背单词
+用户说「背单词」「复习单词」「今日单词」或问学习进度时：
+- 开始背单词时先用 vocab_status 看偏好；第一次用时先问每天几个词、几点提醒并用 vocab_prefs 保存，再用 vocab_today 取到期复习和新词。只问进度时停在 vocab_status，不要生成批次，也不要自己算日期或从记忆里找复习计划。
+- 新词逐张卡讲：单词、音标、词性释义、英文例句 + 中文翻译、2 个常见搭配；释义里已经带 n./v. 等词性时不要再重复 pos；工具没给音标或搭配就按你的知识补，拿不准的省略，不要编造。
+- 复习先只给英文单词，让用户说中文意思；用户答完再用 vocab_grade 提交对错，只提交 due_words 里的词。
+- 用户要改每天词量或提醒时间时用 vocab_prefs；词库里没有的词用 vocab_add_word 加入后再取计划。
+- 日期、复习轮次、剩余词数和统计以工具返回为准。";
 pub const NO_SKILLS: &str = "（暂无技能，phone_task 将直接按目标操作）";
 pub const MEMORY_HEADER: &str = "## 可能相关的记忆";
 

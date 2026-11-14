@@ -23,11 +23,11 @@
 | 要装什么 | 怎么装 | 怎么确认装好了 |
 |-|-|-|
 | TRAE IDE | 官网下载安装并登录 | 能打开课程文件夹，能用 TRAE 终端 |
-| Python 3.8 及以上 | Windows：python.org 下载，安装时勾选 Add python.exe to PATH。macOS：一般自带 python3 | 终端运行 `python --version`（macOS 用 `python3 --version`） |
+| Rust 工具链 | 按 rustup.rs 安装，安装时选默认 stable 工具链 | 终端运行 `cargo --version` |
 | Android platform-tools | 从 Android 官网下载解压，把目录加进 PATH；macOS 也可以 `brew install android-platform-tools`。不会配就让 TRAE 帮你 | 手机连上后运行 `adb devices -l`，显示 `device` |
-| JDK 17、Android SDK 35（选装） | 只有想自己构建 APK 的同学需要；课前运行一次 `scripts/gradle.sh --online test :app:assembleDebug` 下载依赖 | 构建成功；普通同学直接用课程 APK |
+| JDK 17、Android SDK 35（选装） | 只有想自己构建 APK 的同学需要；课前运行一次 `./gradlew -p crates/xiaoman-gpui/android assembleDebug` 下载依赖 | 构建成功；普通同学直接用课程 APK |
 
-为什么要装 Python 和安卓工具？TRAE 改完技能，要在电脑上校验、再推送到手机；改了程序，还要构建新的安装包。装好这两样，TRAE 才能自己跑完、自己检查。
+为什么要装 Rust 和安卓工具？TRAE 改完技能，要用 Rust 写的 CLI 在电脑上校验、再推送到手机；改了程序，还要构建新的安装包。装好这两样，TRAE 才能自己跑完、自己检查。
 
 ### 3. 手机
 
@@ -41,7 +41,7 @@
 
 - [ ] 在小满里发一句闲聊，有回复：聊天模型通了。
 - [ ] 说“打开设置里的 Wi-Fi 页面”，手机自己跳过去：操作模型和无障碍也通了。
-- [ ] 在 TRAE 终端里进入 xiaoman 源码文件夹，`adb devices -l` 显示 `device`，`python cli/xiaoman.py lint skills/examples/*` 显示 `0 problem(s)`。
+- [ ] 在 TRAE 终端里进入 xiaoman 源码文件夹，`adb devices -l` 显示 `device`，`cargo run -p xiaoman-cli -- lint skills/examples/*` 显示 `0 problem(s)`。
 
 ## 第一节：把助手用起来
 
@@ -127,11 +127,11 @@
 - 要去别的 App 里点的（设闹钟、淘宝比价）：`channel: gui` 或 `deeplink-then-gui`，小满会一步步操作手机。
 - 只在对话里做的（排今天、出题、看资讯）：`channel: chat`，叫**聊天工作流**，小满聊天时直接照着做，网页版也能用。
 
-写法见源码里的 `docs/skills.md`。每改完一个技能都执行两行（macOS 没有 `python` 就改用 `python3`）：
+写法见源码里的 `docs/skills.md`。每改完一个技能都执行两行：
 
 ```bash
-python cli/xiaoman.py lint skills/examples/技能名
-python cli/xiaoman.py push skills/examples/技能名
+cargo run -p xiaoman-cli -- lint skills/examples/技能名
+cargo run -p xiaoman-cli -- push skills/examples/技能名
 ```
 
 看到 `0 problem(s)` 和 `skills reloaded` 就推到手机上了，把同一句话再说一次，对比改前改后。iPhone 和鸿蒙 5 以上的同学：聊天工作流放在电脑上的课程源码里，重新启动一次网页版就生效。
@@ -226,9 +226,9 @@ python cli/xiaoman.py push skills/examples/技能名
 单独调试操作层可以用：
 
 ```bash
-python cli/xiaoman.py run "在淘宝比价得力 A5 笔记本，停在最便宜那家的商品页，不加购、不下单" --skill taobao-compare --follow
-python cli/xiaoman.py traces show 本次运行ID
-python cli/xiaoman.py stop
+cargo run -p xiaoman-cli -- run "在淘宝比价得力 A5 笔记本，停在最便宜那家的商品页，不加购、不下单" --skill taobao-compare --follow
+cargo run -p xiaoman-cli -- traces show 本次运行ID
+cargo run -p xiaoman-cli -- stop
 ```
 
 ## 课后：自己接着改

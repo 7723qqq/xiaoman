@@ -14,6 +14,7 @@ xiaoman-mcp = { path = "../xiaoman-mcp" }
 xiaoman-memory = { path = "../xiaoman-memory" }
 xiaoman-sentinel = { path = "../xiaoman-sentinel" }
 xiaoman-skills = { path = "../xiaoman-skills" }
+xiaoman-vocab = { path = "../xiaoman-vocab" }
 async-trait.workspace = true
 serde.workspace = true
 serde_json.workspace = true
