@@ -9,10 +9,7 @@
 
 use std::path::PathBuf;
 
-use gpui::{
-    App, AppContext as _, Application, Bounds, TitlebarOptions, WindowBounds, WindowOptions, px,
-    size,
-};
+use gpui::{App, AppContext as _, Bounds, TitlebarOptions, WindowBounds, WindowOptions, px, size};
 
 use xiaoman_app::session::{Session, SessionConfig};
 use xiaoman_ui::theme;
@@ -28,7 +25,8 @@ fn main() {
         }
     };
 
-    Application::new().run(move |cx: &mut App| {
+    gpui_platform::application().run(move |cx: &mut App| {
+        gpui_kit::init(cx);
         // Centre on the primary display: a remembered or cascaded origin can land off-screen on a
         // narrower monitor, which looks exactly like "the app did not start".
         let bounds = Bounds::centered(None, size(px(430.), px(900.)), cx);
@@ -43,7 +41,10 @@ fn main() {
             },
             move |window, cx| {
                 theme::install(cx, theme::is_light(window.appearance()));
-                cx.new(|cx| RootView::new(cx, session))
+                let view = cx.new(|cx| RootView::new(window, cx, session));
+                // The component library renders its overlays (the text edit menu, dialogs)
+                // inside `Root`; without it they have nowhere to paint.
+                cx.new(|cx| gpui_kit::component::Root::new(view, window, cx).bordered(false))
             },
         )
         .expect("open window");

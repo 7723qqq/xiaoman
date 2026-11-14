@@ -16,7 +16,9 @@ use super::components::{
     column, divider, field_block, field_error, filled_button, heading, outlined_button, row, small,
     text_button, title, toggle,
 };
-use super::text_field::{FieldChanged, TextField};
+use super::text_field::{
+    Input, InputEvent, TextField, field_value, set_field_value, text_field, text_field_masked,
+};
 
 /// Which probe the two buttons under an endpoint run.
 #[derive(Debug, Clone, Copy)]
@@ -50,7 +52,7 @@ impl EventEmitter<SettingsSaved> for SettingsView {}
 
 impl SettingsView {
     /// The screen for `session`'s persisted settings; the folders are the session's own.
-    pub fn new(cx: &mut Context<Self>, session: Session) -> Self {
+    pub fn new(window: &mut Window, cx: &mut Context<Self>, session: Session) -> Self {
         let model = SettingsModel::new(&session.settings()).with_folders(
             session.skills_dir().display().to_string(),
             session.memory_dir().display().to_string(),
@@ -65,13 +67,22 @@ impl SettingsView {
                 Field::Temperature,
             ] {
                 let value = model.field(endpoint, field).to_string();
-                let masked = field == Field::ApiKey && !model.revealed(endpoint);
-                let input = cx.new(|cx| TextField::new(cx, "", &value).masked(masked));
-                cx.subscribe(&input, move |this, _input, event: &FieldChanged, cx| {
-                    this.model
-                        .set_field(endpoint, field, event.text.to_string());
-                    cx.notify();
-                })
+                let input = if field == Field::ApiKey {
+                    text_field_masked(window, cx, "", &value)
+                } else {
+                    text_field(window, cx, "", &value)
+                };
+                cx.subscribe_in(
+                    &input,
+                    window,
+                    move |this, state, event: &InputEvent, _window, cx| {
+                        if matches!(event, InputEvent::Change) {
+                            this.model
+                                .set_field(endpoint, field, field_value(state, cx));
+                            cx.notify();
+                        }
+                    },
+                )
                 .detach();
                 bindings.push(Binding {
                     endpoint,
@@ -81,11 +92,17 @@ impl SettingsView {
             }
         }
 
-        let max_steps = cx.new(|cx| TextField::new(cx, "", model.max_steps()));
-        cx.subscribe(&max_steps, |this, _input, event: &FieldChanged, cx| {
-            this.model.set_max_steps(event.text.to_string());
-            cx.notify();
-        })
+        let max_steps = text_field(window, cx, "", model.max_steps());
+        cx.subscribe_in(
+            &max_steps,
+            window,
+            |this, state, event: &InputEvent, _window, cx| {
+                if matches!(event, InputEvent::Change) {
+                    this.model.set_max_steps(field_value(state, cx));
+                    cx.notify();
+                }
+            },
+        )
         .detach();
 
         Self {
@@ -115,10 +132,11 @@ impl SettingsView {
         endpoint: Endpoint,
         field: Field,
         value: String,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         let input = self.binding(endpoint, field).clone();
-        input.update(cx, |input, cx| input.set_text(value, cx));
+        set_field_value(&input, value, window, cx);
     }
 
     fn field_label(theme: &Theme, text: impl Into<SharedString>) -> Div {
@@ -128,57 +146,18 @@ impl SettingsView {
             .child(text.into())
     }
 
-    fn key_button(
-        &self,
-        theme: &Theme,
-        endpoint: Endpoint,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        let revealed = self.model.revealed(endpoint);
-        let label = if revealed {
-            copy::SETTINGS_HIDE_KEY
-        } else {
-            copy::SETTINGS_SHOW_KEY
-        };
-        let on_click = cx.listener(move |this, _event: &ClickEvent, _window, cx| {
-            this.model.toggle_reveal(endpoint);
-            let masked = !this.model.revealed(endpoint);
-            let input = this.binding(endpoint, Field::ApiKey).clone();
-            input.update(cx, |input, cx| input.set_masked(masked, cx));
-            cx.notify();
-        });
-        text_button(
-            SharedString::from(format!("key-toggle-{}", endpoint_label(endpoint))),
-            theme,
-            label,
-            theme.primary,
-            true,
-            on_click,
-        )
-    }
-
-    fn api_key_block(
-        &self,
-        theme: &Theme,
-        rows: &ModelRows,
-        endpoint: Endpoint,
-        cx: &mut Context<Self>,
-    ) -> Div {
+    /// The API key field: masked by the component, with its own eye toggle.
+    fn api_key_block(&self, theme: &Theme, rows: &ModelRows, endpoint: Endpoint) -> Div {
         column()
             .gap_1()
             .py_1()
             .child(
-                row()
-                    .child(
-                        div()
-                            .flex_1()
-                            .text_size(Theme::label_size())
-                            .text_color(theme.on_surface_variant)
-                            .child(rows.api_key.label.clone()),
-                    )
-                    .child(self.key_button(theme, endpoint, cx)),
+                div()
+                    .text_size(Theme::label_size())
+                    .text_color(theme.on_surface_variant)
+                    .child(rows.api_key.label.clone()),
             )
-            .child(self.binding(endpoint, Field::ApiKey).clone())
+            .child(Input::new(self.binding(endpoint, Field::ApiKey)).mask_toggle())
     }
 
     fn model_section(
@@ -197,7 +176,7 @@ impl SettingsView {
                 self.binding(endpoint, Field::BaseUrl).clone(),
             ))
             .child(self.model_row(theme, rows, endpoint, cx))
-            .child(self.api_key_block(theme, rows, endpoint, cx))
+            .child(self.api_key_block(theme, rows, endpoint))
             .child(
                 column()
                     .gap_1()
@@ -299,9 +278,9 @@ impl SettingsView {
         for (index, model) in rows.models.iter().enumerate() {
             let label = model.clone();
             let picked = model.clone();
-            let pick = cx.listener(move |this, _event: &ClickEvent, _window, cx| {
+            let pick = cx.listener(move |this, _event: &ClickEvent, window, cx| {
                 this.model.pick_model(endpoint, picked.clone());
-                this.set_binding_text(endpoint, Field::Model, picked.clone(), cx);
+                this.set_binding_text(endpoint, Field::Model, picked.clone(), window, cx);
                 cx.notify();
             });
             list = list.child(
@@ -424,18 +403,18 @@ impl Render for SettingsView {
         let theme = theme(cx);
         let rows = self.model.rows();
 
-        let copy_chat = cx.listener(|this, _event: &ClickEvent, _window, cx| {
+        let copy_chat = cx.listener(|this, _event: &ClickEvent, window, cx| {
             this.model.copy_chat_to_operator();
             let base_url = this
                 .model
                 .field(Endpoint::Operator, Field::BaseUrl)
                 .to_string();
-            this.set_binding_text(Endpoint::Operator, Field::BaseUrl, base_url, cx);
+            this.set_binding_text(Endpoint::Operator, Field::BaseUrl, base_url, window, cx);
             let key = this
                 .model
                 .field(Endpoint::Operator, Field::ApiKey)
                 .to_string();
-            this.set_binding_text(Endpoint::Operator, Field::ApiKey, key, cx);
+            this.set_binding_text(Endpoint::Operator, Field::ApiKey, key, window, cx);
             cx.notify();
         });
 

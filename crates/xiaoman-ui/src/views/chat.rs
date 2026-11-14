@@ -17,7 +17,9 @@ use super::components::{
     banner, body, column, filled_button, glyph_box, label, outlined_button, pill, row, text_button,
     title_small,
 };
-use super::text_field::{FieldSubmitted, TextField, styled_text};
+use super::text_field::{
+    Input, InputEvent, TextField, field_value, set_field_value, styled_text, text_field,
+};
 
 /// What the chat screen asks the shell to do.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,16 +40,27 @@ pub struct ChatView {
 impl EventEmitter<ChatEvent> for ChatView {}
 
 impl ChatView {
-    pub fn new(cx: &mut Context<Self>, model: ChatModel, session: Session) -> Self {
+    pub fn new(
+        window: &mut Window,
+        cx: &mut Context<Self>,
+        model: ChatModel,
+        session: Session,
+    ) -> Self {
         let placeholder = if model.question().is_some() {
             copy::CHAT_ANSWER_PLACEHOLDER
         } else {
             copy::CHAT_PLACEHOLDER
         };
-        let draft = cx.new(|cx| TextField::new(cx, placeholder, ""));
-        cx.subscribe(&draft, |this, _field, _event: &FieldSubmitted, cx| {
-            this.send(cx);
-        })
+        let draft = text_field(window, cx, placeholder, "");
+        cx.subscribe_in(
+            &draft,
+            window,
+            |this, _field, event: &InputEvent, window, cx| {
+                if matches!(event, InputEvent::PressEnter { .. }) {
+                    this.send(window, cx);
+                }
+            },
+        )
         .detach();
 
         Self {
@@ -78,11 +91,11 @@ impl ChatView {
         cx.notify();
     }
 
-    fn send(&mut self, cx: &mut Context<Self>) {
-        let text = self.draft.read(cx).text().to_string();
+    fn send(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let text = field_value(&self.draft, cx);
         let outcome = self.session.send(&text);
         if outcome.clears_draft() {
-            self.draft.update(cx, |field, cx| field.clear(cx));
+            set_field_value(&self.draft, "", window, cx);
         }
         self.sync(cx);
     }
@@ -92,9 +105,8 @@ impl ChatView {
         self.sync(cx);
     }
 
-    fn fill_draft(&mut self, prompt: &'static str, cx: &mut Context<Self>) {
-        self.draft
-            .update(cx, |field, cx| field.set_text(prompt, cx));
+    fn fill_draft(&mut self, prompt: &'static str, window: &mut Window, cx: &mut Context<Self>) {
+        set_field_value(&self.draft, prompt, window, cx);
     }
 
     fn header(&self, theme: &Theme) -> Div {
@@ -136,8 +148,8 @@ impl ChatView {
         let mut examples = column().gap_3();
         for (index, (example_title, example_detail, prompt)) in copy::EXAMPLES.iter().enumerate() {
             let prompt: &'static str = prompt;
-            let on_click = cx.listener(move |this, _event: &ClickEvent, _window, cx| {
-                this.fill_draft(prompt, cx);
+            let on_click = cx.listener(move |this, _event: &ClickEvent, window, cx| {
+                this.fill_draft(prompt, window, cx);
             });
             examples = examples.child(
                 div()
@@ -441,15 +453,15 @@ impl ChatView {
     }
 
     fn input_row(&self, theme: &Theme, cx: &mut Context<Self>) -> Div {
-        let draft = self.draft.read(cx).text().to_string();
+        let draft = field_value(&self.draft, cx);
         let can_send = self.model.can_send(&draft);
         let stop = self.model.shows_stop();
 
-        let action = cx.listener(|this, _event: &ClickEvent, _window, cx| {
+        let action = cx.listener(|this, _event: &ClickEvent, window, cx| {
             if this.model.shows_stop() {
                 this.stop(cx);
             } else {
-                this.send(cx);
+                this.send(window, cx);
             }
             cx.notify();
         });
@@ -461,7 +473,7 @@ impl ChatView {
             .py_2()
             .gap_2()
             .items_end()
-            .child(div().flex_1().min_w_0().child(self.draft.clone()))
+            .child(div().flex_1().min_w_0().child(Input::new(&self.draft)))
             .child(
                 div()
                     .id("chat-send")
@@ -491,15 +503,16 @@ impl ChatView {
 }
 
 impl Render for ChatView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = theme(cx);
         let placeholder = if self.model.question().is_some() {
             copy::CHAT_ANSWER_PLACEHOLDER
         } else {
             copy::CHAT_PLACEHOLDER
         };
-        self.draft
-            .update(cx, |field, cx| field.set_placeholder(placeholder, cx));
+        self.draft.update(cx, |field, cx| {
+            field.set_placeholder(SharedString::from(placeholder), window, cx)
+        });
 
         let mut banners = column();
         for (index, item) in self.model.banners().into_iter().enumerate() {

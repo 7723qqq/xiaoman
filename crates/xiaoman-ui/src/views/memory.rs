@@ -17,7 +17,9 @@ use crate::view_model::copy;
 use crate::view_model::memory::{MemoryModel, MemoryRow};
 
 use super::components::{column, heading, row, small, text_button};
-use super::text_field::{FieldChanged, TextField, styled_text};
+use super::text_field::{
+    Input, InputEvent, TextField, field_value, set_field_value, styled_text, text_field,
+};
 
 /// What one background load produced.
 enum Loaded {
@@ -37,13 +39,19 @@ pub struct MemoryView {
 }
 
 impl MemoryView {
-    pub fn new(cx: &mut Context<Self>, session: Session) -> Self {
+    pub fn new(window: &mut Window, cx: &mut Context<Self>, session: Session) -> Self {
         let model = MemoryModel::new();
-        let search = cx.new(|cx| TextField::new(cx, copy::MEMORY_SEARCH_HINT, ""));
-        cx.subscribe(&search, |this, _field, event: &FieldChanged, cx| {
-            this.model.set_query(event.text.to_string());
-            this.refresh(cx);
-        })
+        let search = text_field(window, cx, copy::MEMORY_SEARCH_HINT, "");
+        cx.subscribe_in(
+            &search,
+            window,
+            |this, field, event: &InputEvent, _window, cx| {
+                if matches!(event, InputEvent::Change) {
+                    this.model.set_query(field_value(field, cx));
+                    this.refresh(cx);
+                }
+            },
+        )
         .detach();
 
         let mut view = Self {
@@ -351,9 +359,9 @@ impl Render for MemoryView {
 impl MemoryView {
     /// The list: heading, search box with `清除`, the empty states and one card per row.
     fn list_page(&self, theme: &Theme, cx: &mut Context<Self>) -> Div {
-        let clear = cx.listener(|this, _event: &ClickEvent, _window, cx| {
+        let clear = cx.listener(|this, _event: &ClickEvent, window, cx| {
             this.model.set_query("");
-            this.search.update(cx, |input, cx| input.clear(cx));
+            set_field_value(&this.search, "", window, cx);
             this.reload(cx);
         });
 
@@ -376,7 +384,7 @@ impl MemoryView {
                     .items_center()
                     .gap_2()
                     .w_full()
-                    .child(div().flex_1().min_w_0().child(self.search.clone()))
+                    .child(div().flex_1().min_w_0().child(Input::new(&self.search)))
                     .child(text_button(
                         "memory-clear",
                         theme,

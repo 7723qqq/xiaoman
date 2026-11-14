@@ -12,4 +12,9 @@ xiaoman-app = { path = "../xiaoman-app" }
 xiaoman-mcp = { path = "../xiaoman-mcp" }
 serde_json.workspace = true
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
-gpui = "0.2"
+# Both front-ends use the same GPUI line (`gpui-pre`), so the desktop can use `gpui-kit`'s
+# input widget — with selection, Ctrl+A, drag and the edit menu — instead of a hand-rolled field.
+gpui = { package = "gpui-pre", version = "=0.3.6" }
+# Boots the host's windowing and text backends (winit + font-kit on Windows).
+gpui-platform = { package = "gpui-pre-platform", version = "=0.3.6" }
+gpui-kit = { version = "=0.6.6", default-features = false, features = ["component"] }

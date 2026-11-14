@@ -71,18 +71,18 @@ pub struct RootView {
 }
 
 impl RootView {
-    pub fn new(cx: &mut Context<Self>, session: Session) -> Self {
+    pub fn new(window: &mut Window, cx: &mut Context<Self>, session: Session) -> Self {
         let chat = cx.new(|cx| {
-            let mut view = ChatView::new(cx, ChatModel::new(), session.clone());
+            let mut view = ChatView::new(window, cx, ChatModel::new(), session.clone());
             // An empty transcript still carries 待设置 / 已就绪 from the saved settings.
             view.sync(cx);
             view
         });
         let vocab = cx.new(|cx| VocabView::new(cx, session.clone()));
         let skills = cx.new(|cx| SkillsView::new(cx, session.clone()));
-        let mcp = cx.new(|cx| McpView::new(cx, session.clone()));
-        let memory = cx.new(|cx| MemoryView::new(cx, session.clone()));
-        let settings = cx.new(|cx| SettingsView::new(cx, session.clone()));
+        let mcp = cx.new(|cx| McpView::new(window, cx, session.clone()));
+        let memory = cx.new(|cx| MemoryView::new(window, cx, session.clone()));
+        let settings = cx.new(|cx| SettingsView::new(window, cx, session.clone()));
 
         // A saved settings form decides whether the chat header still says 待设置.
         cx.subscribe(&settings, |this, _settings, event: &SettingsSaved, cx| {

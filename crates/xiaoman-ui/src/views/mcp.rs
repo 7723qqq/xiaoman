@@ -16,7 +16,9 @@ use super::components::{
     body, card, chip, column, divider, filled_button, heading, label, outlined_button, row, small,
     text_button, title, title_small, toggle,
 };
-use super::text_field::{FieldChanged, TextField};
+use super::text_field::{
+    Input, InputEvent, TextField, field_value, set_field_value, text_field, text_field_masked,
+};
 
 /// The MCP screen.
 pub struct McpView {
@@ -31,7 +33,7 @@ pub struct McpView {
 
 impl McpView {
     /// The saved selection of `session` over the packaged catalog.
-    pub fn new(cx: &mut Context<Self>, session: Session) -> Self {
+    pub fn new(window: &mut Window, cx: &mut Context<Self>, session: Session) -> Self {
         let model = McpModel::bundled(session.mcp_config(), McpPlatform::Desktop);
         let mut key_fields = Vec::new();
         for section in model.sections() {
@@ -39,12 +41,18 @@ impl McpView {
                 for key in server.keys {
                     let value = key.value.clone();
                     let name = key.name.clone();
-                    let input = cx.new(|cx| TextField::new(cx, "", &value).masked(true));
+                    let input = text_field_masked(window, cx, "", &value);
                     let bound = name.clone();
-                    cx.subscribe(&input, move |this, _input, event: &FieldChanged, cx| {
-                        this.model.set_key(&bound, &event.text);
-                        cx.notify();
-                    })
+                    cx.subscribe_in(
+                        &input,
+                        window,
+                        move |this, state, event: &InputEvent, _window, cx| {
+                            if matches!(event, InputEvent::Change) {
+                                this.model.set_key(&bound, &field_value(state, cx));
+                                cx.notify();
+                            }
+                        },
+                    )
                     .detach();
                     key_fields.push((name, input));
                 }
@@ -54,24 +62,41 @@ impl McpView {
         let title = model.custom_form().title_value;
         let url = model.custom_form().url_value;
         let auth = model.custom_form().auth_value;
-        let custom_title = cx.new(|cx| TextField::new(cx, copy::MCP_CUSTOM_NAME, &title));
-        cx.subscribe(&custom_title, |this, _input, event: &FieldChanged, cx| {
-            this.model.set_custom_title(event.text.to_string());
-            cx.notify();
-        })
+        let custom_title = text_field(window, cx, copy::MCP_CUSTOM_NAME, &title);
+        cx.subscribe_in(
+            &custom_title,
+            window,
+            |this, state, event: &InputEvent, _window, cx| {
+                if matches!(event, InputEvent::Change) {
+                    this.model.set_custom_title(field_value(state, cx));
+                    cx.notify();
+                }
+            },
+        )
         .detach();
-        let custom_url = cx.new(|cx| TextField::new(cx, copy::MCP_CUSTOM_URL, &url));
-        cx.subscribe(&custom_url, |this, _input, event: &FieldChanged, cx| {
-            this.model.set_custom_url(event.text.to_string());
-            cx.notify();
-        })
+        let custom_url = text_field(window, cx, copy::MCP_CUSTOM_URL, &url);
+        cx.subscribe_in(
+            &custom_url,
+            window,
+            |this, state, event: &InputEvent, _window, cx| {
+                if matches!(event, InputEvent::Change) {
+                    this.model.set_custom_url(field_value(state, cx));
+                    cx.notify();
+                }
+            },
+        )
         .detach();
-        let custom_auth =
-            cx.new(|cx| TextField::new(cx, copy::MCP_CUSTOM_AUTH, &auth).masked(true));
-        cx.subscribe(&custom_auth, |this, _input, event: &FieldChanged, cx| {
-            this.model.set_custom_auth(event.text.to_string());
-            cx.notify();
-        })
+        let custom_auth = text_field_masked(window, cx, copy::MCP_CUSTOM_AUTH, &auth);
+        cx.subscribe_in(
+            &custom_auth,
+            window,
+            |this, state, event: &InputEvent, _window, cx| {
+                if matches!(event, InputEvent::Change) {
+                    this.model.set_custom_auth(field_value(state, cx));
+                    cx.notify();
+                }
+            },
+        )
         .detach();
 
         Self {
@@ -185,7 +210,7 @@ impl McpView {
                                 .text_color(theme.on_surface_variant)
                                 .child(key.label.clone()),
                         )
-                        .child(input.clone());
+                        .child(Input::new(input).mask_toggle());
                 }
                 if let Some(help) = &key.help {
                     let url = help.clone();
@@ -271,11 +296,11 @@ impl McpView {
             ));
         }
 
-        let add = cx.listener(|this, _event: &ClickEvent, _window, cx| {
+        let add = cx.listener(|this, _event: &ClickEvent, window, cx| {
             if this.model.add_custom() {
-                this.custom_title.update(cx, |input, cx| input.clear(cx));
-                this.custom_url.update(cx, |input, cx| input.clear(cx));
-                this.custom_auth.update(cx, |input, cx| input.clear(cx));
+                set_field_value(&this.custom_title, "", window, cx);
+                set_field_value(&this.custom_url, "", window, cx);
+                set_field_value(&this.custom_auth, "", window, cx);
             }
             cx.notify();
         });
@@ -290,14 +315,14 @@ impl McpView {
                     .text_color(theme.on_surface_variant)
                     .child(form.title_label),
             )
-            .child(self.custom_title.clone())
+            .child(Input::new(&self.custom_title))
             .child(
                 div()
                     .text_size(Theme::label_size())
                     .text_color(theme.on_surface_variant)
                     .child(form.url_label),
             )
-            .child(self.custom_url.clone())
+            .child(Input::new(&self.custom_url))
             .children(form.problem.clone().map(|problem| {
                 div()
                     .text_size(Theme::small_size())
