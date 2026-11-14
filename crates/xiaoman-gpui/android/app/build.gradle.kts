@@ -63,12 +63,12 @@ fun releaseSigning(): Map<String, String> {
         File(System.getProperty("user.home"), ".xiaoman-android/xiaoman-signing.properties"),
         rootProject.projectDir.resolve("local.properties"),
     ).filter { it.isFile }.forEach { file ->
-        file.inputStream().use { stream ->
-            Properties().apply { load(stream) }.forEach { (key, value) ->
-                val name = key as? String ?: return@forEach
-                if (name.startsWith("xiaoman.signing.")) {
-                    values[name.removePrefix("xiaoman.signing.")] = value as String
-                }
+        val properties = Properties()
+        file.inputStream().use { properties.load(it) }
+        for ((key, value) in properties) {
+            val name = key as? String ?: continue
+            if (name.startsWith("xiaoman.signing.")) {
+                values[name.removePrefix("xiaoman.signing.")] = value as String
             }
         }
     }
@@ -78,9 +78,12 @@ fun releaseSigning(): Map<String, String> {
         target.writeBytes(Base64.getDecoder().decode(encoded))
         values["storeFile"] = target.absolutePath
     }
-    listOf("storeFile", "storePassword", "keyAlias", "keyPassword").forEach { key ->
-        System.getenv("XIAOMAN_SIGNING_${key.uppercase(Locale.ROOT)}")?.let { values[key] = it }
-    }
+    mapOf(
+        "storeFile" to "XIAOMAN_SIGNING_STORE_FILE",
+        "storePassword" to "XIAOMAN_SIGNING_STORE_PASSWORD",
+        "keyAlias" to "XIAOMAN_SIGNING_KEY_ALIAS",
+        "keyPassword" to "XIAOMAN_SIGNING_KEY_PASSWORD",
+    ).forEach { (key, variable) -> System.getenv(variable)?.let { values[key] = it } }
     return values
 }
 
