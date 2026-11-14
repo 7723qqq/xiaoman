@@ -6,8 +6,9 @@
 //! restart.
 
 use std::ops::Range;
+use std::time::Duration;
 
-use gpui::{ClickEvent, Context, Div, Entity, IntoElement, Render, Window, div, prelude::*};
+use gpui::{ClickEvent, Context, Div, Entity, IntoElement, Render, Task, Window, div, prelude::*};
 
 use xiaoman_app::session::Session;
 
@@ -18,11 +19,21 @@ use crate::view_model::memory::{MemoryModel, MemoryRow};
 use super::components::{column, heading, row, small, text_button};
 use super::text_field::{FieldChanged, TextField, styled_text};
 
+/// What one background load produced.
+enum Loaded {
+    Notes(Vec<xiaoman_api::Note>),
+    Hits(Vec<xiaoman_api::SearchHit>),
+}
+
 /// The memory screen.
 pub struct MemoryView {
     model: MemoryModel,
     session: Session,
     search: Entity<TextField>,
+    /// The pending debounced search; replacing it drops the older one.
+    pending: Option<Task<()>>,
+    /// Bumped per search, so a slow reply cannot overwrite a newer one.
+    generation: u64,
 }
 
 impl MemoryView {
@@ -39,6 +50,8 @@ impl MemoryView {
             model,
             session,
             search,
+            pending: None,
+            generation: 0,
         };
         view.reload(cx);
         view
@@ -48,32 +61,55 @@ impl MemoryView {
         &self.model
     }
 
-    /// `memory.list()` for a blank query, `memory.search(q, 50)` otherwise.
+    /// `memory.list()` for a blank query, `memory.search(q, 50)` otherwise — on a background
+    /// thread, because both are blocking file reads and the search box fires per keystroke.
     pub fn reload(&mut self, cx: &mut Context<Self>) {
-        let query = self.model.query().trim().to_string();
-        if query.is_empty() {
-            match self.session.memory_list(None) {
-                Ok(notes) => self.model.set_notes(&notes),
-                Err(error) => {
-                    eprintln!("读取记忆失败：{error}");
-                    self.model.set_failed();
-                }
-            }
-        } else {
-            match self.session.memory_search(&query, 50) {
-                Ok(hits) => self.model.set_hits(&hits),
-                Err(error) => {
-                    eprintln!("搜索记忆失败：{error}");
-                    self.model.set_failed();
-                }
-            }
-        }
-        cx.notify();
+        self.schedule(cx, Duration::ZERO);
     }
 
-    /// The query changed: the rows follow it.
+    /// The query changed: wait out the typing before searching.
     fn refresh(&mut self, cx: &mut Context<Self>) {
-        self.reload(cx);
+        self.schedule(cx, Duration::from_millis(150));
+    }
+
+    fn schedule(&mut self, cx: &mut Context<Self>, delay: Duration) {
+        self.generation += 1;
+        let generation = self.generation;
+        let session = self.session.clone();
+        let query = self.model.query().trim().to_string();
+        self.model.begin_refresh();
+        self.pending = Some(cx.spawn(async move |this, cx| {
+            if !delay.is_zero() {
+                cx.background_executor().timer(delay).await;
+            }
+            let loaded = cx
+                .background_executor()
+                .spawn(async move {
+                    if query.is_empty() {
+                        session.memory_list(None).map(Loaded::Notes)
+                    } else {
+                        session.memory_search(&query, 50).map(Loaded::Hits)
+                    }
+                })
+                .await;
+            this.update(cx, |this, cx| {
+                if this.generation != generation {
+                    // A newer keystroke already scheduled its own search.
+                    return;
+                }
+                match loaded {
+                    Ok(Loaded::Notes(notes)) => this.model.set_notes(&notes),
+                    Ok(Loaded::Hits(hits)) => this.model.set_hits(&hits),
+                    Err(error) => {
+                        eprintln!("读取记忆失败：{error}");
+                        this.model.set_failed();
+                    }
+                }
+                cx.notify();
+            })
+            .ok();
+        }));
+        cx.notify();
     }
 
     /// Tapping a row: a note that is gone shows `MEMORY_NOT_FOUND` instead of an empty page.
