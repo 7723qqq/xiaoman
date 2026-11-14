@@ -563,3 +563,83 @@ fn factory_creates_clients_for_a_config() {
     assert_eq!(client.config().model, "test-model");
     assert_eq!(client.config().base_url, "http://127.0.0.1:1/api/v3");
 }
+
+#[tokio::test]
+async fn lists_models_in_order_without_duplicates() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v3/models"))
+        .and(wiremock::matchers::header(
+            "Authorization",
+            format!("Bearer {API_KEY}"),
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": [
+                {"id": "doubao-pro"},
+                {"id": "doubao-lite"},
+                {"id": "doubao-pro"},
+                {"name": "named-model"},
+                {"model": "labelled-model"},
+                {"object": "model"}
+            ]
+        })))
+        .mount(&server)
+        .await;
+    let client = client(&server, 0, recorder().0);
+
+    let models = client.list_models().await.expect("models");
+
+    assert_eq!(
+        models,
+        vec!["doubao-pro", "doubao-lite", "named-model", "labelled-model"]
+    );
+}
+
+#[tokio::test]
+async fn an_empty_model_list_is_ok() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v3/models"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"data": []})))
+        .mount(&server)
+        .await;
+    let client = client(&server, 0, recorder().0);
+
+    assert!(client.list_models().await.expect("models").is_empty());
+}
+
+#[tokio::test]
+async fn model_list_errors_keep_the_status_and_drop_the_key() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v3/models"))
+        .respond_with(ResponseTemplate::new(401).set_body_json(json!({
+            "error": {"message": "invalid key sk-secret-123456"}
+        })))
+        .mount(&server)
+        .await;
+    let client = client(&server, 0, recorder().0);
+
+    let error = client.list_models().await.expect_err("401 must fail");
+
+    assert_eq!(error.status_code, Some(401));
+    assert!(!error.retryable);
+    assert!(!error.message.contains(API_KEY), "{}", error.message);
+    assert!(!error.message.contains("sk-secret"), "{}", error.message);
+}
+
+#[tokio::test]
+async fn a_model_list_that_is_not_json_is_an_error() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v3/models"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("<html>no</html>"))
+        .mount(&server)
+        .await;
+    let client = client(&server, 0, recorder().0);
+
+    let error = client.list_models().await.expect_err("not JSON must fail");
+
+    assert_eq!(error.status_code, Some(200));
+    assert!(!error.retryable);
+}

@@ -4,7 +4,8 @@
 //! Parsing stays where the Kotlin app puts it (`SettingsForm.toSettings`), so this module only
 //! maps the form to labelled rows and reports whether Save may run.
 
-use xiaoman_app::settings::{AppSettings, SettingsForm};
+use xiaoman_app::model_probe::ProbeOutcome;
+use xiaoman_app::settings::{AppSettings, ModelSettings, SettingsForm};
 
 use super::copy;
 
@@ -57,6 +58,18 @@ pub struct ModelRows {
     pub model: FieldRow,
     pub api_key: FieldRow,
     pub temperature: FieldRow,
+    /// Model ids the last `获取模型` returned; empty when there is no picker to paint.
+    pub models: Vec<String>,
+    /// The last probe's line, painted in the normal or the error colour.
+    pub probe: Option<ProbeRow>,
+}
+
+/// The result line under an endpoint's probe buttons.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProbeRow {
+    pub message: String,
+    /// Success paints the message in the normal colour, failure in the error colour.
+    pub ok: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -94,6 +107,10 @@ pub struct SettingsModel {
     saved: bool,
     reveal_chat: bool,
     reveal_operator: bool,
+    models_chat: Vec<String>,
+    models_operator: Vec<String>,
+    probe_chat: Option<ProbeRow>,
+    probe_operator: Option<ProbeRow>,
     skills_dir: String,
     memory_dir: String,
     traces_dir: String,
@@ -106,6 +123,10 @@ impl SettingsModel {
             saved: false,
             reveal_chat: false,
             reveal_operator: false,
+            models_chat: Vec::new(),
+            models_operator: Vec::new(),
+            probe_chat: None,
+            probe_operator: None,
             skills_dir: String::new(),
             memory_dir: String::new(),
             traces_dir: String::new(),
@@ -144,6 +165,59 @@ impl SettingsModel {
         match endpoint {
             Endpoint::Chat => self.reveal_chat = !self.reveal_chat,
             Endpoint::Operator => self.reveal_operator = !self.reveal_operator,
+        }
+    }
+
+    /// The endpoint as typed, for a probe: `None` while the temperature is not a valid number.
+    pub fn draft(&self, endpoint: Endpoint) -> Option<ModelSettings> {
+        self.model(endpoint).to_settings()
+    }
+
+    /// The model ids the last `获取模型` returned.
+    pub fn models(&self, endpoint: Endpoint) -> &[String] {
+        match endpoint {
+            Endpoint::Chat => &self.models_chat,
+            Endpoint::Operator => &self.models_operator,
+        }
+    }
+
+    /// The last probe's line for this endpoint.
+    pub fn probe(&self, endpoint: Endpoint) -> Option<&ProbeRow> {
+        match endpoint {
+            Endpoint::Chat => self.probe_chat.as_ref(),
+            Endpoint::Operator => self.probe_operator.as_ref(),
+        }
+    }
+
+    /// One probe's result: the message always, the model list only when the outcome carries one.
+    pub fn apply_probe(&mut self, endpoint: Endpoint, outcome: ProbeOutcome) {
+        if let Some(models) = outcome.models {
+            match endpoint {
+                Endpoint::Chat => self.models_chat = models,
+                Endpoint::Operator => self.models_operator = models,
+            }
+        }
+        let row = Some(ProbeRow {
+            message: outcome.message,
+            ok: outcome.ok,
+        });
+        match endpoint {
+            Endpoint::Chat => self.probe_chat = row,
+            Endpoint::Operator => self.probe_operator = row,
+        }
+    }
+
+    /// Clicking a listed model fills the model field and closes the picker.
+    pub fn pick_model(&mut self, endpoint: Endpoint, model: impl Into<String>) {
+        self.set_field(endpoint, Field::Model, model);
+        self.clear_models(endpoint);
+    }
+
+    /// Closes the model picker.
+    pub fn clear_models(&mut self, endpoint: Endpoint) {
+        match endpoint {
+            Endpoint::Chat => self.models_chat.clear(),
+            Endpoint::Operator => self.models_operator.clear(),
         }
     }
 
@@ -317,6 +391,8 @@ impl SettingsModel {
                 secret: false,
                 revealed: true,
             },
+            models: self.models(endpoint).to_vec(),
+            probe: self.probe(endpoint).cloned(),
         }
     }
 }

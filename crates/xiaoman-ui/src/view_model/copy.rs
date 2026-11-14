@@ -95,6 +95,9 @@ pub const SETTINGS_API_KEY: &str = "API Key";
 pub const SETTINGS_SHOW_KEY: &str = "显示 API Key";
 pub const SETTINGS_HIDE_KEY: &str = "隐藏 API Key";
 pub const SETTINGS_TEMPERATURE: &str = "Temperature（可选）";
+/// The endpoint probe buttons.
+pub const SETTINGS_FETCH_MODELS: &str = "获取模型";
+pub const SETTINGS_TEST: &str = "测试";
 pub const SETTINGS_AGENT: &str = "任务";
 pub const SETTINGS_MAX_STEPS: &str = "最多步数";
 pub const SETTINGS_LEARN: &str = "成功后记住操作路径";

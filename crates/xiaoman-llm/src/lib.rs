@@ -73,6 +73,55 @@ impl OpenAiCompatibleClient {
         }
     }
 
+    /// `GET {base_url}/models`: the endpoint's model ids, deduplicated in server order.
+    ///
+    /// One attempt, no retries: the Settings screen calls it from a button, so a failure should
+    /// surface as it happens instead of after a backoff. Error messages never contain the API key.
+    pub async fn list_models(&self) -> Result<Vec<String>, LlmError> {
+        let url = format!("{}/models", self.config.base_url.trim_end_matches('/'));
+        let mut request = self
+            .http
+            .get(&url)
+            .header("Authorization", format!("Bearer {}", self.config.api_key));
+        for (name, value) in &self.config.extra_headers {
+            request = request.header(name, value);
+        }
+        let response = request.send().await.map_err(|error| LlmError {
+            message: self.redact(&format!("Request to {url} failed: {error}")),
+            status_code: None,
+            retryable: true,
+            provider_code: None,
+        })?;
+        let code = response.status().as_u16();
+        let body = response.text().await.map_err(|error| LlmError {
+            message: self.redact(&format!("Reading {url} failed: {error}")),
+            status_code: Some(code),
+            retryable: true,
+            provider_code: None,
+        })?;
+        if !(200..=299).contains(&code) {
+            return Err(LlmError {
+                message: self.redact(&format!(
+                    "HTTP {code} from {url}: {}",
+                    self.error_detail(&body)
+                )),
+                status_code: Some(code),
+                retryable: is_retryable(code),
+                provider_code: self.provider_code(&body),
+            });
+        }
+        let root: Value = serde_json::from_str(&body).map_err(|_| LlmError {
+            message: self.redact(&format!(
+                "Malformed response from {url}: {}",
+                truncate(&body, 200)
+            )),
+            status_code: Some(code),
+            retryable: false,
+            provider_code: None,
+        })?;
+        Ok(model_ids(root.get("data").and_then(Value::as_array)))
+    }
+
     pub fn build_body(&self, request: &ChatRequest, json_mode: bool) -> Value {
         let mut body = Map::new();
         body.insert("model".into(), json!(self.config.model));
@@ -396,6 +445,22 @@ fn content_text(content: Option<&Value>) -> String {
             .to_string(),
         Some(other) => other.to_string(),
     }
+}
+
+/// `data[].id` of a `/models` reply, deduplicated in server order. `name`/`model` are accepted
+/// for compatible servers that label the field differently; entries without either are skipped.
+fn model_ids(data: Option<&Vec<Value>>) -> Vec<String> {
+    let mut ids: Vec<String> = Vec::new();
+    for entry in data.into_iter().flatten() {
+        let id = ["id", "name", "model"]
+            .iter()
+            .find_map(|key| entry.get(*key).and_then(Value::as_str))
+            .unwrap_or_default();
+        if !id.is_empty() && !ids.iter().any(|existing| existing == id) {
+            ids.push(id.to_string());
+        }
+    }
+    ids
 }
 
 fn integer(map: &Map<String, Value>, key: &str) -> i32 {

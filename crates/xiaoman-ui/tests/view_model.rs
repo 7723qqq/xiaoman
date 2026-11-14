@@ -10,6 +10,7 @@ use xiaoman_api::{
     Skill, SkillChannel, SkillLoadResult, SkillProblem,
 };
 use xiaoman_app::chat_item::{ChatItem, chat_rich_text, step_text};
+use xiaoman_app::model_probe::{models_outcome, test_outcome};
 use xiaoman_app::settings::{AppSettings, ModelSettings, SettingsForm};
 use xiaoman_mcp::{CatalogKey, CatalogServer, ConfirmPolicy, McpSelection, ServerStatus};
 use xiaoman_ui::view_model::chat::{ApprovalCard, ChatModel, ChatRow, MessageKind, Submit};
@@ -1239,4 +1240,60 @@ fn a_snapshot_with_a_question_fills_the_input_hint() {
     assert_eq!(copy::CHAT_ANSWER_PLACEHOLDER, model.placeholder());
     assert!(!model.shows_stop(), "answering a question is not a stop");
     assert!(model.can_send("A5"));
+}
+
+#[test]
+fn a_fetch_fills_the_picker_and_a_test_leaves_it_alone() {
+    let mut model = SettingsModel::new(&configured_settings());
+
+    model.apply_probe(
+        Endpoint::Chat,
+        models_outcome(Ok(vec![
+            "doubao-pro".to_string(),
+            "doubao-lite".to_string(),
+        ])),
+    );
+    let rows = model.rows();
+    assert_eq!(rows.chat.models, ["doubao-pro", "doubao-lite"]);
+    let probe = rows.chat.probe.expect("a probe line");
+    assert_eq!(probe.message, "获取到 2 个模型");
+    assert!(probe.ok);
+    assert!(rows.operator.models.is_empty(), "另一个端点不受影响");
+
+    // 测试成功：只换提示，不动列表。
+    model.apply_probe(Endpoint::Chat, test_outcome(Ok(())));
+    assert_eq!(model.models(Endpoint::Chat), ["doubao-pro", "doubao-lite"]);
+    let probe = model.rows().chat.probe.expect("a probe line");
+    assert_eq!(probe.message, "连接成功");
+    assert!(probe.ok);
+
+    // 测试失败：原文照出，列表还在。
+    model.apply_probe(Endpoint::Chat, test_outcome(Err("连接超时".to_string())));
+    assert_eq!(model.models(Endpoint::Chat).len(), 2);
+    let probe = model.rows().chat.probe.expect("a probe line");
+    assert_eq!(probe.message, "连接超时");
+    assert!(!probe.ok);
+
+    // 拉取失败：清空旧列表。
+    model.apply_probe(Endpoint::Chat, models_outcome(Err("HTTP 401".to_string())));
+    assert!(model.models(Endpoint::Chat).is_empty());
+    assert!(!model.rows().chat.probe.expect("a probe line").ok);
+}
+
+#[test]
+fn picking_a_listed_model_writes_it_back_and_closes_the_picker() {
+    let mut model = SettingsModel::new(&configured_settings());
+    model.apply_probe(
+        Endpoint::Operator,
+        models_outcome(Ok(vec!["qwen-vl".to_string()])),
+    );
+    assert_eq!(model.rows().operator.models, ["qwen-vl"]);
+
+    model.pick_model(Endpoint::Operator, "qwen-vl");
+    assert_eq!(model.field(Endpoint::Operator, Field::Model), "qwen-vl");
+    assert!(
+        model.models(Endpoint::Operator).is_empty(),
+        "选完就收起列表"
+    );
+    assert_eq!(model.field(Endpoint::Chat, Field::Model), "doubao-chat");
 }

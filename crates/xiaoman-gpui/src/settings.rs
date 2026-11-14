@@ -12,6 +12,7 @@ use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::input::InputState;
 use gpui_kit::component::switch::Switch;
 use gpui_kit::component::Disableable;
+use xiaoman_app::model_probe::{self, ProbeOutcome};
 use xiaoman_app::session::Session;
 use xiaoman_app::settings::{AppSettings, ModelSettings};
 
@@ -20,6 +21,20 @@ use gpui_mobile::KeyboardType;
 use crate::ui::{
     field, field_masked, hint, input, input_masked, input_with_keyboard_type, title, value,
 };
+
+/// Which endpoint a probe button belongs to.
+#[derive(Clone, Copy)]
+enum Endpoint {
+    Chat,
+    Operator,
+}
+
+/// Which probe the two buttons under an endpoint run.
+#[derive(Clone, Copy)]
+enum ProbeKind {
+    Models,
+    Test,
+}
 
 pub struct SettingsView {
     session: Option<Arc<Session>>,
@@ -34,6 +49,10 @@ pub struct SettingsView {
     max_steps: Entity<InputState>,
     learn: bool,
     message: Option<String>,
+    chat_models: Vec<String>,
+    operator_models: Vec<String>,
+    chat_probe: Option<(String, bool)>,
+    operator_probe: Option<(String, bool)>,
 }
 
 impl SettingsView {
@@ -94,6 +113,10 @@ impl SettingsView {
             max_steps,
             learn: settings.learn_from_success,
             message: None,
+            chat_models: Vec::new(),
+            operator_models: Vec::new(),
+            chat_probe: None,
+            operator_probe: None,
         }
     }
 
@@ -155,6 +178,150 @@ impl SettingsView {
                 .filter(|value| (0.0..=2.0).contains(value)),
         }
     }
+
+    /// The endpoint as typed, for a probe.
+    fn draft(&self, endpoint: Endpoint, cx: &Context<Self>) -> ModelSettings {
+        match endpoint {
+            Endpoint::Chat => self.model(
+                &self.chat_base,
+                &self.chat_model,
+                &self.chat_key,
+                &self.chat_temperature,
+                cx,
+            ),
+            Endpoint::Operator => self.model(
+                &self.operator_base,
+                &self.operator_model,
+                &self.operator_key,
+                &self.operator_temperature,
+                cx,
+            ),
+        }
+    }
+
+    /// Runs one probe against the fields as typed; the network call stays off the UI thread.
+    fn probe(&mut self, endpoint: Endpoint, kind: ProbeKind, cx: &mut Context<Self>) {
+        let Some(session) = self.session.clone() else {
+            self.set_probe(
+                endpoint,
+                ProbeOutcome {
+                    models: None,
+                    message: "会话还没有打开。".to_string(),
+                    ok: false,
+                },
+            );
+            cx.notify();
+            return;
+        };
+        let settings = self.draft(endpoint, cx);
+        cx.spawn(async move |this, cx| {
+            let outcome = cx
+                .background_executor()
+                .spawn(async move {
+                    match kind {
+                        ProbeKind::Models => model_probe::models_outcome(
+                            session.on_runtime(model_probe::fetch_models(&settings)),
+                        ),
+                        ProbeKind::Test => model_probe::test_outcome(
+                            session.on_runtime(model_probe::test_model(&settings)),
+                        ),
+                    }
+                })
+                .await;
+            this.update(cx, |this, cx| {
+                this.set_probe(endpoint, outcome);
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
+        cx.notify();
+    }
+
+    fn set_probe(&mut self, endpoint: Endpoint, outcome: ProbeOutcome) {
+        let row = Some((outcome.message, outcome.ok));
+        match endpoint {
+            Endpoint::Chat => {
+                if let Some(models) = outcome.models {
+                    self.chat_models = models;
+                }
+                self.chat_probe = row;
+            }
+            Endpoint::Operator => {
+                if let Some(models) = outcome.models {
+                    self.operator_models = models;
+                }
+                self.operator_probe = row;
+            }
+        }
+    }
+
+    /// The two buttons, the reported models and the result line of one endpoint.
+    fn probe_block(&self, endpoint: Endpoint, cx: &mut Context<Self>) -> impl IntoElement {
+        let (models, probe, fetch_id, test_id) = match endpoint {
+            Endpoint::Chat => (
+                self.chat_models.clone(),
+                self.chat_probe.clone(),
+                "fetch-chat",
+                "test-chat",
+            ),
+            Endpoint::Operator => (
+                self.operator_models.clone(),
+                self.operator_probe.clone(),
+                "fetch-operator",
+                "test-operator",
+            ),
+        };
+
+        let mut block = div().flex().flex_col().gap_2().child(
+            div()
+                .flex()
+                .gap_2()
+                .child(Button::new(fetch_id).label("获取模型").on_click(
+                    cx.listener(move |this, _, _, cx| this.probe(endpoint, ProbeKind::Models, cx)),
+                ))
+                .child(Button::new(test_id).label("测试").on_click(
+                    cx.listener(move |this, _, _, cx| this.probe(endpoint, ProbeKind::Test, cx)),
+                )),
+        );
+
+        for (index, model) in models.iter().enumerate() {
+            let name = model.clone();
+            let label = model.clone();
+            let target = match endpoint {
+                Endpoint::Chat => self.chat_model.clone(),
+                Endpoint::Operator => self.operator_model.clone(),
+            };
+            block = block.child(
+                Button::new(format!(
+                    "model-{index}-{}",
+                    match endpoint {
+                        Endpoint::Chat => "chat",
+                        Endpoint::Operator => "operator",
+                    }
+                ))
+                .label(label)
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    target.update(cx, |state, cx| state.set_value(name.clone(), window, cx));
+                    match endpoint {
+                        Endpoint::Chat => this.chat_models.clear(),
+                        Endpoint::Operator => this.operator_models.clear(),
+                    }
+                    cx.notify();
+                })),
+            );
+        }
+
+        if let Some((message, ok)) = probe {
+            block = block.child(
+                div()
+                    .text_sm()
+                    .text_color(if ok { rgb(0x1e6b52) } else { rgb(0xb3261e) })
+                    .child(message),
+            );
+        }
+        block
+    }
 }
 
 impl Render for SettingsView {
@@ -199,6 +366,7 @@ impl Render for SettingsView {
                         )
                     },
                 )
+                .child(self.probe_block(Endpoint::Chat, cx))
                 .child(title("操作模型（需支持图片）"))
                 .child(field("Base URL", &self.operator_base))
                 .child(field("模型名称", &self.operator_model))
@@ -215,6 +383,7 @@ impl Render for SettingsView {
                         )
                     },
                 )
+                .child(self.probe_block(Endpoint::Operator, cx))
                 .child(
                     Button::new("copy-chat")
                         .label("与聊天模型相同")

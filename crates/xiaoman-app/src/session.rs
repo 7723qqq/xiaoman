@@ -1578,6 +1578,18 @@ impl Session {
             self.inner.runtime().block_on(future)
         }
     }
+
+    /// Runs `future` on the session's tokio runtime and returns its output.
+    ///
+    /// For callers on plain background threads that have to reach the network: reqwest needs
+    /// this runtime's reactor. Blocks the calling thread, so only call it from a background task.
+    pub fn on_runtime<F, T>(&self, future: F) -> T
+    where
+        F: Future<Output = T> + Send,
+        T: Send,
+    {
+        self.blocking(future)
+    }
 }
 
 impl fmt::Debug for Session {

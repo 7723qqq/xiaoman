@@ -5,6 +5,7 @@ use gpui::{
     SharedString, Window, div, prelude::*,
 };
 
+use xiaoman_app::model_probe::{self, ProbeOutcome};
 use xiaoman_app::session::Session;
 
 use crate::theme::{Theme, theme};
@@ -16,6 +17,13 @@ use super::components::{
     title, toggle,
 };
 use super::text_field::{FieldChanged, TextField};
+
+/// Which probe the two buttons under an endpoint run.
+#[derive(Debug, Clone, Copy)]
+enum ProbeKind {
+    Models,
+    Test,
+}
 
 /// Told to the shell after a successful save, so the chat header can leave `待设置`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -200,6 +208,106 @@ impl SettingsView {
                             .map(|help| field_error(theme, help)),
                     ),
             )
+            .child(self.probe_block(theme, rows, endpoint, cx))
+    }
+
+    /// `获取模型` / `测试`, the result line, and the picker of the models the endpoint reported.
+    fn probe_block(
+        &self,
+        theme: &Theme,
+        rows: &ModelRows,
+        endpoint: Endpoint,
+        cx: &mut Context<Self>,
+    ) -> Div {
+        let fetch = cx.listener(move |this, _event: &ClickEvent, _window, cx| {
+            this.probe(endpoint, ProbeKind::Models, cx);
+        });
+        let test = cx.listener(move |this, _event: &ClickEvent, _window, cx| {
+            this.probe(endpoint, ProbeKind::Test, cx);
+        });
+
+        let mut block = column().gap_1().py_1().child(
+            row()
+                .gap_2()
+                .child(text_button(
+                    theme,
+                    copy::SETTINGS_FETCH_MODELS,
+                    theme.primary,
+                    true,
+                    fetch,
+                ))
+                .child(text_button(
+                    theme,
+                    copy::SETTINGS_TEST,
+                    theme.primary,
+                    true,
+                    test,
+                )),
+        );
+
+        for model in &rows.models {
+            let name = model.clone();
+            let pick = cx.listener(move |this, _event: &ClickEvent, _window, cx| {
+                this.model.pick_model(endpoint, name.clone());
+                this.set_binding_text(endpoint, Field::Model, name.clone(), cx);
+                cx.notify();
+            });
+            block = block.child(text_button(theme, model.clone(), theme.primary, true, pick));
+        }
+
+        if let Some(probe) = &rows.probe {
+            let color = if probe.ok {
+                theme.on_surface_variant
+            } else {
+                theme.error
+            };
+            block = block.child(
+                div()
+                    .text_size(Theme::small_size())
+                    .text_color(color)
+                    .child(probe.message.clone()),
+            );
+        }
+        block
+    }
+
+    /// Runs one probe on a background thread against the draft being edited.
+    fn probe(&mut self, endpoint: Endpoint, kind: ProbeKind, cx: &mut Context<Self>) {
+        let Some(settings) = self.model.draft(endpoint) else {
+            self.model.apply_probe(
+                endpoint,
+                ProbeOutcome {
+                    models: None,
+                    message: copy::SETTINGS_INVALID_NUMBER.to_string(),
+                    ok: false,
+                },
+            );
+            cx.notify();
+            return;
+        };
+        let session = self.session.clone();
+        cx.spawn(async move |this, cx| {
+            let outcome = cx
+                .background_executor()
+                .spawn(async move {
+                    match kind {
+                        ProbeKind::Models => model_probe::models_outcome(
+                            session.on_runtime(model_probe::fetch_models(&settings)),
+                        ),
+                        ProbeKind::Test => model_probe::test_outcome(
+                            session.on_runtime(model_probe::test_model(&settings)),
+                        ),
+                    }
+                })
+                .await;
+            this.update(cx, |this, cx| {
+                this.model.apply_probe(endpoint, outcome);
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
+        cx.notify();
     }
 }
 

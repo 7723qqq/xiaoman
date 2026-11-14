@@ -8,6 +8,7 @@
 pub mod chat_item;
 pub mod json;
 pub mod mcp_settings;
+pub mod model_probe;
 pub mod run_ids;
 pub mod session;
 pub mod settings;
