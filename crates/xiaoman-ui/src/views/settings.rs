@@ -2,7 +2,7 @@
 
 use gpui::{
     ClickEvent, Context, Div, Entity, EventEmitter, IntoElement, Render, ScrollHandle,
-    SharedString, Window, div, prelude::*,
+    SharedString, Window, div, prelude::*, px,
 };
 
 use xiaoman_app::model_probe::{self, ProbeOutcome};
@@ -189,11 +189,7 @@ impl SettingsView {
                 rows.base_url.label.clone(),
                 self.binding(endpoint, Field::BaseUrl).clone(),
             ))
-            .child(field_block(
-                theme,
-                rows.model.label.clone(),
-                self.binding(endpoint, Field::Model).clone(),
-            ))
+            .child(self.model_row(theme, rows, endpoint, cx))
             .child(self.api_key_block(theme, rows, endpoint, cx))
             .child(
                 column()
@@ -211,7 +207,115 @@ impl SettingsView {
             .child(self.probe_block(theme, rows, endpoint, cx))
     }
 
-    /// `获取模型` / `测试`, the result line, and the picker of the models the endpoint reported.
+    /// `模型名称` with the dropdown caret on its right: after `获取模型`, picking from the caret
+    /// fills the field.
+    fn model_row(
+        &self,
+        theme: &Theme,
+        rows: &ModelRows,
+        endpoint: Endpoint,
+        cx: &mut Context<Self>,
+    ) -> Div {
+        let mut field_row = row().gap_2().py_1().child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .child(self.binding(endpoint, Field::Model).clone()),
+        );
+
+        if !rows.models.is_empty() {
+            let caret = if rows.picker_open { "▴" } else { "▾" };
+            let toggle = cx.listener(move |this, _event: &ClickEvent, _window, cx| {
+                this.model.toggle_picker(endpoint);
+                cx.notify();
+            });
+            field_row = field_row.child(
+                div()
+                    .id(SharedString::from(format!(
+                        "model-picker-{}",
+                        endpoint_label(endpoint)
+                    )))
+                    .flex_shrink_0()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .px_2()
+                    .py_1()
+                    .rounded_md()
+                    .cursor_pointer()
+                    .text_size(Theme::body_size())
+                    .text_color(theme.primary)
+                    .child(caret)
+                    .on_click(toggle),
+            );
+        }
+
+        let mut block = column()
+            .gap_1()
+            .py_1()
+            .child(Self::field_label(theme, rows.model.label.clone()))
+            .child(field_row);
+
+        if rows.picker_open {
+            block = block.child(self.model_picker(theme, rows, endpoint, cx));
+        }
+        block
+    }
+
+    /// The list the caret opens: one row per model, capped in height and scrollable.
+    fn model_picker(
+        &self,
+        theme: &Theme,
+        rows: &ModelRows,
+        endpoint: Endpoint,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let mut list = div()
+            .id(SharedString::from(format!(
+                "model-list-{}",
+                endpoint_label(endpoint)
+            )))
+            .flex()
+            .flex_col()
+            .w_full()
+            .p_1()
+            .max_h(px(220.))
+            .overflow_y_scroll()
+            .rounded_lg()
+            .border_1()
+            .border_color(theme.outline_variant)
+            .bg(theme.surface);
+
+        for (index, model) in rows.models.iter().enumerate() {
+            let label = model.clone();
+            let picked = model.clone();
+            let pick = cx.listener(move |this, _event: &ClickEvent, _window, cx| {
+                this.model.pick_model(endpoint, picked.clone());
+                this.set_binding_text(endpoint, Field::Model, picked.clone(), cx);
+                cx.notify();
+            });
+            list = list.child(
+                div()
+                    .id(SharedString::from(format!(
+                        "model-item-{}-{index}",
+                        endpoint_label(endpoint)
+                    )))
+                    .w_full()
+                    .px_2()
+                    .py_1()
+                    .rounded_md()
+                    .cursor_pointer()
+                    .text_size(Theme::small_size())
+                    .text_color(theme.on_surface)
+                    .hover(|style| style.bg(theme.surface_variant))
+                    .child(label)
+                    .on_click(pick),
+            );
+        }
+        list
+    }
+
+    /// `获取模型` / `测试` and the result line of the last probe.
     fn probe_block(
         &self,
         theme: &Theme,
@@ -244,16 +348,6 @@ impl SettingsView {
                     test,
                 )),
         );
-
-        for model in &rows.models {
-            let name = model.clone();
-            let pick = cx.listener(move |this, _event: &ClickEvent, _window, cx| {
-                this.model.pick_model(endpoint, name.clone());
-                this.set_binding_text(endpoint, Field::Model, name.clone(), cx);
-                cx.notify();
-            });
-            block = block.child(text_button(theme, model.clone(), theme.primary, true, pick));
-        }
 
         if let Some(probe) = &rows.probe {
             let color = if probe.ok {
@@ -436,3 +530,11 @@ impl Render for SettingsView {
 
 #[allow(dead_code)]
 fn _keep_px(_: gpui::Pixels) {}
+
+/// Element ids must be unique across the two sections.
+fn endpoint_label(endpoint: Endpoint) -> &'static str {
+    match endpoint {
+        Endpoint::Chat => "chat",
+        Endpoint::Operator => "operator",
+    }
+}

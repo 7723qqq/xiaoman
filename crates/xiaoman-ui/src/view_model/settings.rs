@@ -60,6 +60,8 @@ pub struct ModelRows {
     pub temperature: FieldRow,
     /// Model ids the last `获取模型` returned; empty when there is no picker to paint.
     pub models: Vec<String>,
+    /// The dropdown beside the model field is open.
+    pub picker_open: bool,
     /// The last probe's line, painted in the normal or the error colour.
     pub probe: Option<ProbeRow>,
 }
@@ -109,6 +111,8 @@ pub struct SettingsModel {
     reveal_operator: bool,
     models_chat: Vec<String>,
     models_operator: Vec<String>,
+    picker_chat: bool,
+    picker_operator: bool,
     probe_chat: Option<ProbeRow>,
     probe_operator: Option<ProbeRow>,
     skills_dir: String,
@@ -125,6 +129,8 @@ impl SettingsModel {
             reveal_operator: false,
             models_chat: Vec::new(),
             models_operator: Vec::new(),
+            picker_chat: false,
+            picker_operator: false,
             probe_chat: None,
             probe_operator: None,
             skills_dir: String::new(),
@@ -181,6 +187,27 @@ impl SettingsModel {
         }
     }
 
+    /// The dropdown beside the model field is open.
+    pub fn picker_open(&self, endpoint: Endpoint) -> bool {
+        match endpoint {
+            Endpoint::Chat => self.picker_chat,
+            Endpoint::Operator => self.picker_operator,
+        }
+    }
+
+    /// Opening or closing the model dropdown.
+    pub fn toggle_picker(&mut self, endpoint: Endpoint) {
+        let open = !self.picker_open(endpoint);
+        self.set_picker(endpoint, open);
+    }
+
+    fn set_picker(&mut self, endpoint: Endpoint, open: bool) {
+        match endpoint {
+            Endpoint::Chat => self.picker_chat = open,
+            Endpoint::Operator => self.picker_operator = open,
+        }
+    }
+
     /// The last probe's line for this endpoint.
     pub fn probe(&self, endpoint: Endpoint) -> Option<&ProbeRow> {
         match endpoint {
@@ -190,12 +217,17 @@ impl SettingsModel {
     }
 
     /// One probe's result: the message always, the model list only when the outcome carries one.
+    ///
+    /// A successful fetch also opens the dropdown beside the model field, so the next thing the
+    /// user sees is the list they asked for.
     pub fn apply_probe(&mut self, endpoint: Endpoint, outcome: ProbeOutcome) {
         if let Some(models) = outcome.models {
+            let open = !models.is_empty();
             match endpoint {
                 Endpoint::Chat => self.models_chat = models,
                 Endpoint::Operator => self.models_operator = models,
             }
+            self.set_picker(endpoint, open);
         }
         let row = Some(ProbeRow {
             message: outcome.message,
@@ -207,18 +239,19 @@ impl SettingsModel {
         }
     }
 
-    /// Clicking a listed model fills the model field and closes the picker.
+    /// Picking a model fills the field and closes the dropdown; the list stays for another pick.
     pub fn pick_model(&mut self, endpoint: Endpoint, model: impl Into<String>) {
         self.set_field(endpoint, Field::Model, model);
-        self.clear_models(endpoint);
+        self.set_picker(endpoint, false);
     }
 
-    /// Closes the model picker.
+    /// Closes the model dropdown and forgets the fetched list.
     pub fn clear_models(&mut self, endpoint: Endpoint) {
         match endpoint {
             Endpoint::Chat => self.models_chat.clear(),
             Endpoint::Operator => self.models_operator.clear(),
         }
+        self.set_picker(endpoint, false);
     }
 
     fn model(&self, endpoint: Endpoint) -> &xiaoman_app::settings::ModelForm {
@@ -392,6 +425,7 @@ impl SettingsModel {
                 revealed: true,
             },
             models: self.models(endpoint).to_vec(),
+            picker_open: self.picker_open(endpoint),
             probe: self.probe(endpoint).cloned(),
         }
     }

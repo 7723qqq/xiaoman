@@ -1255,14 +1255,17 @@ fn a_fetch_fills_the_picker_and_a_test_leaves_it_alone() {
     );
     let rows = model.rows();
     assert_eq!(rows.chat.models, ["doubao-pro", "doubao-lite"]);
+    assert!(rows.chat.picker_open, "拉取成功后下拉自动展开");
     let probe = rows.chat.probe.expect("a probe line");
     assert_eq!(probe.message, "获取到 2 个模型");
     assert!(probe.ok);
     assert!(rows.operator.models.is_empty(), "另一个端点不受影响");
+    assert!(!rows.operator.picker_open);
 
-    // 测试成功：只换提示，不动列表。
+    // 测试成功：只换提示，不动列表，也不收起正在看的列表。
     model.apply_probe(Endpoint::Chat, test_outcome(Ok(())));
     assert_eq!(model.models(Endpoint::Chat), ["doubao-pro", "doubao-lite"]);
+    assert!(model.rows().chat.picker_open);
     let probe = model.rows().chat.probe.expect("a probe line");
     assert_eq!(probe.message, "连接成功");
     assert!(probe.ok);
@@ -1274,9 +1277,10 @@ fn a_fetch_fills_the_picker_and_a_test_leaves_it_alone() {
     assert_eq!(probe.message, "连接超时");
     assert!(!probe.ok);
 
-    // 拉取失败：清空旧列表。
+    // 拉取失败：清空旧列表，下拉收起（没有可选的模型）。
     model.apply_probe(Endpoint::Chat, models_outcome(Err("HTTP 401".to_string())));
     assert!(model.models(Endpoint::Chat).is_empty());
+    assert!(!model.rows().chat.picker_open);
     assert!(!model.rows().chat.probe.expect("a probe line").ok);
 }
 
@@ -1288,12 +1292,21 @@ fn picking_a_listed_model_writes_it_back_and_closes_the_picker() {
         models_outcome(Ok(vec!["qwen-vl".to_string()])),
     );
     assert_eq!(model.rows().operator.models, ["qwen-vl"]);
+    assert!(model.rows().operator.picker_open);
 
     model.pick_model(Endpoint::Operator, "qwen-vl");
     assert_eq!(model.field(Endpoint::Operator, Field::Model), "qwen-vl");
-    assert!(
-        model.models(Endpoint::Operator).is_empty(),
-        "选完就收起列表"
+    assert!(!model.rows().operator.picker_open, "选完收起下拉");
+    assert_eq!(
+        model.models(Endpoint::Operator),
+        ["qwen-vl"],
+        "列表留着，还能再选一次"
     );
     assert_eq!(model.field(Endpoint::Chat, Field::Model), "doubao-chat");
+
+    // 小箭头可以再打开。
+    model.toggle_picker(Endpoint::Operator);
+    assert!(model.rows().operator.picker_open);
+    model.toggle_picker(Endpoint::Operator);
+    assert!(!model.rows().operator.picker_open);
 }

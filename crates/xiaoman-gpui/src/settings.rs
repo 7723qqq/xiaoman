@@ -51,6 +51,8 @@ pub struct SettingsView {
     message: Option<String>,
     chat_models: Vec<String>,
     operator_models: Vec<String>,
+    chat_picker: bool,
+    operator_picker: bool,
     chat_probe: Option<(String, bool)>,
     operator_probe: Option<(String, bool)>,
 }
@@ -115,6 +117,8 @@ impl SettingsView {
             message: None,
             chat_models: Vec::new(),
             operator_models: Vec::new(),
+            chat_picker: false,
+            operator_picker: false,
             chat_probe: None,
             operator_probe: None,
         }
@@ -243,12 +247,14 @@ impl SettingsView {
         match endpoint {
             Endpoint::Chat => {
                 if let Some(models) = outcome.models {
+                    self.chat_picker = !models.is_empty();
                     self.chat_models = models;
                 }
                 self.chat_probe = row;
             }
             Endpoint::Operator => {
                 if let Some(models) = outcome.models {
+                    self.operator_picker = !models.is_empty();
                     self.operator_models = models;
                 }
                 self.operator_probe = row;
@@ -256,17 +262,77 @@ impl SettingsView {
         }
     }
 
-    /// The two buttons, the reported models and the result line of one endpoint.
-    fn probe_block(&self, endpoint: Endpoint, cx: &mut Context<Self>) -> impl IntoElement {
-        let (models, probe, fetch_id, test_id) = match endpoint {
+    /// `模型名称` with the dropdown caret on its right, and the list it opens.
+    fn model_field(&self, endpoint: Endpoint, cx: &mut Context<Self>) -> impl IntoElement {
+        let (models, open, input, id) = match endpoint {
             Endpoint::Chat => (
                 self.chat_models.clone(),
-                self.chat_probe.clone(),
-                "fetch-chat",
-                "test-chat",
+                self.chat_picker,
+                self.chat_model.clone(),
+                "chat",
             ),
             Endpoint::Operator => (
                 self.operator_models.clone(),
+                self.operator_picker,
+                self.operator_model.clone(),
+                "operator",
+            ),
+        };
+
+        let mut head = div()
+            .flex()
+            .items_end()
+            .gap_2()
+            .child(div().flex_1().child(field("模型名称", &input)));
+
+        if !models.is_empty() {
+            let glyph = if open { "▴" } else { "▾" };
+            head = head.child(
+                Button::new(format!("model-picker-{id}"))
+                    .label(glyph)
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        match endpoint {
+                            Endpoint::Chat => this.chat_picker = !this.chat_picker,
+                            Endpoint::Operator => this.operator_picker = !this.operator_picker,
+                        }
+                        cx.notify();
+                    })),
+            );
+        }
+
+        let mut block = div().flex().flex_col().gap_2().child(head);
+
+        if open {
+            let mut list = div().flex().flex_col().gap_1();
+            for (index, model) in models.iter().enumerate() {
+                let label = model.clone();
+                let picked = model.clone();
+                let target = input.clone();
+                list = list.child(
+                    Button::new(format!("model-{id}-{index}"))
+                        .label(label)
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            target.update(cx, |state, cx| {
+                                state.set_value(picked.clone(), window, cx)
+                            });
+                            match endpoint {
+                                Endpoint::Chat => this.chat_picker = false,
+                                Endpoint::Operator => this.operator_picker = false,
+                            }
+                            cx.notify();
+                        })),
+                );
+            }
+            block = block.child(list);
+        }
+        block
+    }
+
+    /// The two buttons, the reported models and the result line of one endpoint.
+    fn probe_block(&self, endpoint: Endpoint, cx: &mut Context<Self>) -> impl IntoElement {
+        let (probe, fetch_id, test_id) = match endpoint {
+            Endpoint::Chat => (self.chat_probe.clone(), "fetch-chat", "test-chat"),
+            Endpoint::Operator => (
                 self.operator_probe.clone(),
                 "fetch-operator",
                 "test-operator",
@@ -284,33 +350,6 @@ impl SettingsView {
                     cx.listener(move |this, _, _, cx| this.probe(endpoint, ProbeKind::Test, cx)),
                 )),
         );
-
-        for (index, model) in models.iter().enumerate() {
-            let name = model.clone();
-            let label = model.clone();
-            let target = match endpoint {
-                Endpoint::Chat => self.chat_model.clone(),
-                Endpoint::Operator => self.operator_model.clone(),
-            };
-            block = block.child(
-                Button::new(format!(
-                    "model-{index}-{}",
-                    match endpoint {
-                        Endpoint::Chat => "chat",
-                        Endpoint::Operator => "operator",
-                    }
-                ))
-                .label(label)
-                .on_click(cx.listener(move |this, _, window, cx| {
-                    target.update(cx, |state, cx| state.set_value(name.clone(), window, cx));
-                    match endpoint {
-                        Endpoint::Chat => this.chat_models.clear(),
-                        Endpoint::Operator => this.operator_models.clear(),
-                    }
-                    cx.notify();
-                })),
-            );
-        }
 
         if let Some((message, ok)) = probe {
             block = block.child(
@@ -352,7 +391,7 @@ impl Render for SettingsView {
                 ))
                 .child(title("聊天模型"))
                 .child(field("Base URL", &self.chat_base))
-                .child(field("模型名称", &self.chat_model))
+                .child(self.model_field(Endpoint::Chat, cx))
                 .child(field_masked("API Key", &self.chat_key))
                 .child(field("Temperature（可选）", &self.chat_temperature))
                 .when(
@@ -369,7 +408,7 @@ impl Render for SettingsView {
                 .child(self.probe_block(Endpoint::Chat, cx))
                 .child(title("操作模型（需支持图片）"))
                 .child(field("Base URL", &self.operator_base))
-                .child(field("模型名称", &self.operator_model))
+                .child(self.model_field(Endpoint::Operator, cx))
                 .child(field_masked("API Key", &self.operator_key))
                 .child(field("Temperature（可选）", &self.operator_temperature))
                 .when(
