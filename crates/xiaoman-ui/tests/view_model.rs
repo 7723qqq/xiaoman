@@ -1310,3 +1310,32 @@ fn picking_a_listed_model_writes_it_back_and_closes_the_picker() {
     model.toggle_picker(Endpoint::Operator);
     assert!(!model.rows().operator.picker_open);
 }
+
+#[test]
+fn each_endpoint_drafts_its_own_fields_for_a_probe() {
+    let mut model = SettingsModel::new(&configured_settings());
+    model.set_field(
+        Endpoint::Operator,
+        Field::BaseUrl,
+        "https://operator.example.com/api/v3",
+    );
+    model.set_field(Endpoint::Operator, Field::ApiKey, "sk-operator");
+    model.set_field(Endpoint::Operator, Field::Model, "qwen-vl");
+    model.set_field(Endpoint::Operator, Field::Temperature, "0.3");
+
+    let chat = model.draft(Endpoint::Chat).expect("温度合法");
+    assert_eq!(chat.base_url, "https://ark.example.com/api/v3");
+    assert_eq!(chat.model, "doubao-chat");
+    assert_eq!(chat.api_key, "sk-chat");
+
+    let operator = model.draft(Endpoint::Operator).expect("温度合法");
+    assert_eq!(operator.base_url, "https://operator.example.com/api/v3");
+    assert_eq!(operator.model, "qwen-vl");
+    assert_eq!(operator.api_key, "sk-operator");
+    assert_eq!(operator.temperature, Some(0.3));
+
+    // 温度写坏就不发探针。
+    model.set_field(Endpoint::Operator, Field::Temperature, "9");
+    assert!(model.draft(Endpoint::Operator).is_none());
+    assert!(model.draft(Endpoint::Chat).is_some());
+}

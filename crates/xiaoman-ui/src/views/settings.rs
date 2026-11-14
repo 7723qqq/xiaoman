@@ -14,7 +14,7 @@ use crate::view_model::settings::{Endpoint, Field, ModelRows, SettingsModel};
 
 use super::components::{
     column, divider, field_block, field_error, filled_button, heading, row, small, text_button,
-    title, toggle,
+    text_button_with_id, title, toggle,
 };
 use super::text_field::{FieldChanged, TextField};
 
@@ -147,7 +147,14 @@ impl SettingsView {
             input.update(cx, |input, cx| input.set_masked(masked, cx));
             cx.notify();
         });
-        text_button(theme, label, theme.primary, true, on_click)
+        text_button_with_id(
+            SharedString::from(format!("key-toggle-{}", endpoint_label(endpoint))),
+            theme,
+            label,
+            theme.primary,
+            true,
+            on_click,
+        )
     }
 
     fn api_key_block(
@@ -333,14 +340,16 @@ impl SettingsView {
         let mut block = column().gap_1().py_1().child(
             row()
                 .gap_2()
-                .child(text_button(
+                .child(text_button_with_id(
+                    SharedString::from(format!("fetch-{}", endpoint_label(endpoint))),
                     theme,
                     copy::SETTINGS_FETCH_MODELS,
                     theme.primary,
                     true,
                     fetch,
                 ))
-                .child(text_button(
+                .child(text_button_with_id(
+                    SharedString::from(format!("test-{}", endpoint_label(endpoint))),
                     theme,
                     copy::SETTINGS_TEST,
                     theme.primary,

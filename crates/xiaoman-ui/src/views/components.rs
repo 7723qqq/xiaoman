@@ -207,6 +207,9 @@ pub fn outlined_button(
 }
 
 /// A text button: no chrome until hovered.
+///
+/// The element id is derived from the label, so two screens that paint the same label share it —
+/// pass an explicit id with [`text_button_with_id`] when the same label appears twice in a window.
 pub fn text_button(
     theme: &Theme,
     text: impl Into<SharedString>,
@@ -215,8 +218,27 @@ pub fn text_button(
     on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
     let text: SharedString = text.into();
+    text_button_with_id(
+        SharedString::from(format!("text-{text}")),
+        theme,
+        text,
+        color,
+        enabled,
+        on_click,
+    )
+}
+
+/// A text button with an id of the caller's choosing.
+pub fn text_button_with_id(
+    id: impl Into<SharedString>,
+    theme: &Theme,
+    text: impl Into<SharedString>,
+    color: Hsla,
+    enabled: bool,
+    on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+) -> impl IntoElement {
     div()
-        .id(SharedString::from(format!("text-{}", text.clone())))
+        .id(id.into())
         .flex()
         .items_center()
         .justify_center()
@@ -230,7 +252,7 @@ pub fn text_button(
             theme.on_surface_variant
         })
         .when(enabled, |element| element.cursor_pointer())
-        .child(text)
+        .child(text.into())
         .when(enabled, |element| element.on_click(on_click))
 }
 
