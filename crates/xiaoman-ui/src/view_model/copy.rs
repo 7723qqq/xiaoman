@@ -21,11 +21,9 @@ pub const CLEAR: &str = "清除";
 
 // Session messages added to the transcript
 pub const SESSION_NOT_CONFIGURED: &str = "还没有配置模型，请先在设置里填写聊天模型和操作模型。";
-pub const SESSION_BUSY: &str = "已有任务在运行，请稍后再试。";
 pub const SESSION_STOPPED: &str = "已停止";
 
 // Chat
-pub const CHAT_SEND: &str = "发送";
 pub const CHAT_STOP: &str = "停止";
 pub const CHAT_PLACEHOLDER: &str = "说说你想做什么…";
 pub const CHAT_ANSWER_PLACEHOLDER: &str = "告诉我就好…";
@@ -65,8 +63,6 @@ pub const SKILL_DRAFT_DELETE_WARNING: &str = "将删除用户技能；内置技�
 
 // Process card
 pub const PROCESS_LABEL: &str = "处理过程";
-pub const PROCESS_EXPAND: &str = "展开处理过程";
-pub const PROCESS_COLLAPSE: &str = "收起处理过程";
 
 // Skills
 pub const SKILLS_TITLE: &str = "技能";

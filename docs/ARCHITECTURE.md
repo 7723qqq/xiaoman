@@ -31,6 +31,13 @@ App。框架负责“手”（无障碍操作）、“眼”（读屏）、记�
 依赖方向：`xiaoman-api` 在最底层；`xiaoman-app` 组装 `xiaoman-agent` 与各实现；两个 UI
 （`xiaoman-gpui` / `xiaoman-ui`）只读写 `xiaoman-app::Session`。
 
+两个前端是同一套能力，逐页对照见 [ui-interaction.md](ui-interaction.md#六页能做什么)；这里只记
+容易漏的行为：桌面的记忆页与手机一样能打开笔记、返回、删除并确认；服务页每个服务的开关与
+「去申请」都走同一份 `view_model`；设置页两个端点各有「获取模型」（拉列表 → 模型名右侧下拉）
+与「测试」。桌面 UI 的每个交互元素必须带**显式且同屏唯一**的 ElementId —— GPUI 按 id 共享
+按下态，同 id 会让除第一个以外的控件全部点不动，`crates/xiaoman-ui/tests/ui_ids.rs` 是这条规则
+的门禁。
+
 Android 宿主里的 Kotlin 只保留 Android 框架要求的对象：无障碍服务、前台服务、通知、AlarmManager、
 Keystore、悬浮窗和 JNI 壳；所有决策都在 Rust。
 
