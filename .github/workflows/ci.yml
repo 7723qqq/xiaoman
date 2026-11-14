@@ -54,13 +54,19 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - uses: android-actions/setup-android@v3
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android
       - uses: Swatinem/rust-cache@v2
-      - name: 安装 NDK
-        run: sdkmanager "ndk;27.2.12479018"
+      # runner 自带的 SDK 已经够用；android-actions/setup-android 会去装已下架的 `tools` 包然后失败。
+      - name: 安装 NDK 与平台包
+        run: |
+          SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER=$(ls "$ANDROID_SDK_ROOT"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)
+          fi
+          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
       - name: 构建 GPUI Android 前端 release APK
         env:
           ANDROID_NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.2.12479018
