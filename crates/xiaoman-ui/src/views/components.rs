@@ -112,8 +112,8 @@ pub fn pill(_theme: &Theme, text: impl Into<SharedString>, fg: Hsla, bg: Hsla) -
 
 /// The chat header's banner row: text on the left, an action on the right.
 pub fn banner(
-    theme: &Theme,
     id: impl Into<SharedString>,
+    theme: &Theme,
     text: impl Into<SharedString>,
     action: impl Into<SharedString>,
     on_action: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
@@ -148,8 +148,9 @@ pub fn banner(
         )
 }
 
-/// A filled button (Material `Button`).
+/// A filled button (Material `Button`). `id` must be unique in the window: see the module note.
 pub fn filled_button(
+    id: impl Into<SharedString>,
     theme: &Theme,
     text: impl Into<SharedString>,
     enabled: bool,
@@ -163,7 +164,7 @@ pub fn filled_button(
         (theme.surface_variant, theme.on_surface_variant)
     };
     div()
-        .id(SharedString::from(format!("filled-{}", text.clone())))
+        .id(id.into())
         .flex()
         .items_center()
         .justify_center()
@@ -178,25 +179,8 @@ pub fn filled_button(
         .when(enabled, |element| element.on_click(on_click))
 }
 
-/// An outlined button (Material `OutlinedButton`).
+/// An outlined button (Material `OutlinedButton`). `id` must be unique in the window.
 pub fn outlined_button(
-    theme: &Theme,
-    text: impl Into<SharedString>,
-    enabled: bool,
-    on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
-) -> impl IntoElement {
-    let text: SharedString = text.into();
-    outlined_button_with_id(
-        SharedString::from(format!("outlined-{text}")),
-        theme,
-        text,
-        enabled,
-        on_click,
-    )
-}
-
-/// An outlined button with an id of the caller's choosing.
-pub fn outlined_button_with_id(
     id: impl Into<SharedString>,
     theme: &Theme,
     text: impl Into<SharedString>,
@@ -229,30 +213,8 @@ pub fn outlined_button_with_id(
         .when(enabled, |element| element.on_click(on_click))
 }
 
-/// A text button: no chrome until hovered.
-///
-/// The element id is derived from the label, so two screens that paint the same label share it —
-/// pass an explicit id with [`text_button_with_id`] when the same label appears twice in a window.
+/// A text button: no chrome until hovered. `id` must be unique in the window.
 pub fn text_button(
-    theme: &Theme,
-    text: impl Into<SharedString>,
-    color: Hsla,
-    enabled: bool,
-    on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
-) -> impl IntoElement {
-    let text: SharedString = text.into();
-    text_button_with_id(
-        SharedString::from(format!("text-{text}")),
-        theme,
-        text,
-        color,
-        enabled,
-        on_click,
-    )
-}
-
-/// A text button with an id of the caller's choosing.
-pub fn text_button_with_id(
     id: impl Into<SharedString>,
     theme: &Theme,
     text: impl Into<SharedString>,
@@ -281,8 +243,8 @@ pub fn text_button_with_id(
 
 /// A Material `Switch`, drawn as a track with a knob. `id` keeps the switches of a list apart.
 pub fn toggle(
-    theme: &Theme,
     id: impl Into<SharedString>,
+    theme: &Theme,
     on: bool,
     on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
@@ -313,6 +275,7 @@ pub fn toggle(
 
 /// A Material `FilterChip`.
 pub fn chip(
+    id: impl Into<SharedString>,
     theme: &Theme,
     text: impl Into<SharedString>,
     selected: bool,
@@ -321,7 +284,7 @@ pub fn chip(
     let theme = *theme;
     let text: SharedString = text.into();
     div()
-        .id(SharedString::from(format!("chip-{}", text.clone())))
+        .id(id.into())
         .flex()
         .items_center()
         .px_3()

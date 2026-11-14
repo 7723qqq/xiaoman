@@ -113,7 +113,13 @@ impl Render for VocabView {
                 .items_center()
                 .justify_between()
                 .child(heading(&theme, copy::NAV_VOCAB))
-                .child(filled_button(&theme, copy::VOCAB_REFRESH, true, refresh)),
+                .child(filled_button(
+                    "vocab-refresh",
+                    &theme,
+                    copy::VOCAB_REFRESH,
+                    true,
+                    refresh,
+                )),
         );
 
         if let Some(message) = &self.message {

@@ -147,6 +147,7 @@ impl Render for SkillsView {
                             .child(heading(&theme, copy::SKILLS_TITLE)),
                     )
                     .child(outlined_button(
+                        "skills-reload",
                         &theme,
                         copy::SKILLS_RELOAD,
                         !loading,

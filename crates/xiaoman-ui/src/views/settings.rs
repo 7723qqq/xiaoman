@@ -13,8 +13,8 @@ use crate::view_model::copy;
 use crate::view_model::settings::{Endpoint, Field, ModelRows, SettingsModel};
 
 use super::components::{
-    column, divider, field_block, field_error, filled_button, heading, outlined_button_with_id,
-    row, small, text_button, text_button_with_id, title, toggle,
+    column, divider, field_block, field_error, filled_button, heading, outlined_button, row, small,
+    text_button, title, toggle,
 };
 use super::text_field::{FieldChanged, TextField};
 
@@ -147,7 +147,7 @@ impl SettingsView {
             input.update(cx, |input, cx| input.set_masked(masked, cx));
             cx.notify();
         });
-        text_button_with_id(
+        text_button(
             SharedString::from(format!("key-toggle-{}", endpoint_label(endpoint))),
             theme,
             label,
@@ -343,14 +343,14 @@ impl SettingsView {
         let mut block = column().gap_1().py_1().child(
             row()
                 .gap_2()
-                .child(outlined_button_with_id(
+                .child(outlined_button(
                     SharedString::from(format!("fetch-{}", endpoint_label(endpoint))),
                     theme,
                     copy::SETTINGS_FETCH_MODELS,
                     !rows.probing,
                     fetch,
                 ))
-                .child(outlined_button_with_id(
+                .child(outlined_button(
                     SharedString::from(format!("test-{}", endpoint_label(endpoint))),
                     theme,
                     copy::SETTINGS_TEST,
@@ -484,6 +484,7 @@ impl Render for SettingsView {
                     .child(divider(&theme))
                     .child(self.model_section(&theme, &rows.operator, Endpoint::Operator, cx))
                     .child(text_button(
+                        "settings-copy-chat",
                         &theme,
                         rows.copy_chat.clone(),
                         theme.primary,
@@ -515,13 +516,14 @@ impl Render for SettingsView {
                                     .text_color(theme.on_surface)
                                     .child(rows.learn.label.clone()),
                             )
-                            .child(toggle(&theme, "learn-toggle", rows.learn.on, learn)),
+                            .child(toggle("learn-toggle", &theme, rows.learn.on, learn)),
                     )
                     .child(
                         row()
                             .gap_3()
                             .py_2()
                             .child(filled_button(
+                                "settings-save",
                                 &theme,
                                 rows.save.label.clone(),
                                 rows.save.enabled,

@@ -249,6 +249,7 @@ impl ChatView {
                         .child(status.to_string()),
                 )
                 .child(text_button(
+                    "chat-stop",
                     theme,
                     copy::CHAT_STOP,
                     theme.primary,
@@ -289,12 +290,14 @@ impl ChatView {
         let mut controls = row()
             .gap_3()
             .child(outlined_button(
+                "approval-deny",
                 theme,
                 copy::APPROVAL_DENY,
                 !responding,
                 deny,
             ))
             .child(filled_button(
+                "approval-once",
                 theme,
                 copy::APPROVAL_ONCE,
                 !responding,
@@ -303,6 +306,7 @@ impl ChatView {
 
         controls = if state.more {
             controls.child(text_button(
+                "approval-task",
                 theme,
                 copy::APPROVAL_TASK,
                 theme.primary,
@@ -311,6 +315,7 @@ impl ChatView {
             ))
         } else {
             controls.child(text_button(
+                "approval-more",
                 theme,
                 copy::APPROVAL_MORE,
                 theme.primary,
@@ -417,8 +422,20 @@ impl ChatView {
             card.child(
                 row()
                     .gap_3()
-                    .child(outlined_button(theme, copy::SKILL_CANCEL, true, cancel))
-                    .child(filled_button(theme, copy::SKILL_SAVE, true, save)),
+                    .child(outlined_button(
+                        "skill-cancel",
+                        theme,
+                        copy::SKILL_CANCEL,
+                        true,
+                        cancel,
+                    ))
+                    .child(filled_button(
+                        "skill-save",
+                        theme,
+                        copy::SKILL_SAVE,
+                        true,
+                        save,
+                    )),
             ),
         )
     }
@@ -490,8 +507,8 @@ impl Render for ChatView {
                 cx.emit(ChatEvent::OpenSettings);
             });
             banners = banners.child(banner(
-                &theme,
                 format!("banner-{index}"),
+                &theme,
                 item.text,
                 item.action,
                 open_settings,

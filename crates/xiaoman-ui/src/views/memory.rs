@@ -15,7 +15,7 @@ use crate::theme::{Theme, theme};
 use crate::view_model::copy;
 use crate::view_model::memory::{MemoryModel, MemoryRow};
 
-use super::components::{column, heading, row, small, text_button_with_id};
+use super::components::{column, heading, row, small, text_button};
 use super::text_field::{FieldChanged, TextField, styled_text};
 
 /// The memory screen.
@@ -154,7 +154,7 @@ impl MemoryView {
         let mut page = column().gap_2().p_3().child(
             row()
                 .gap_2()
-                .child(text_button_with_id(
+                .child(text_button(
                     "memory-back",
                     theme,
                     copy::BACK,
@@ -168,7 +168,7 @@ impl MemoryView {
                         .min_w_0()
                         .child(heading(theme, note.title.clone())),
                 )
-                .child(text_button_with_id(
+                .child(text_button(
                     "memory-delete",
                     theme,
                     copy::MEMORY_DELETE,
@@ -236,7 +236,7 @@ impl MemoryView {
                 row()
                     .gap_2()
                     .justify_end()
-                    .child(text_button_with_id(
+                    .child(text_button(
                         "memory-delete-cancel",
                         theme,
                         copy::CANCEL,
@@ -244,7 +244,7 @@ impl MemoryView {
                         true,
                         cancel,
                     ))
-                    .child(text_button_with_id(
+                    .child(text_button(
                         "memory-delete-confirm",
                         theme,
                         copy::MEMORY_DELETE_CONFIRM,
@@ -283,7 +283,7 @@ impl Render for MemoryView {
                             .text_color(theme.on_surface_variant)
                             .child(message),
                     )
-                    .child(text_button_with_id(
+                    .child(text_button(
                         "memory-dismiss-message",
                         &theme,
                         copy::CLEAR,
@@ -341,7 +341,7 @@ impl MemoryView {
                     .gap_2()
                     .w_full()
                     .child(div().flex_1().min_w_0().child(self.search.clone()))
-                    .child(text_button_with_id(
+                    .child(text_button(
                         "memory-clear",
                         theme,
                         copy::CLEAR,

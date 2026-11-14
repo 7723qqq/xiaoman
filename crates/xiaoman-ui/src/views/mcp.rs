@@ -14,7 +14,7 @@ use crate::view_model::mcp::{CustomRow, McpModel, ServerRow, StatusRow};
 
 use super::components::{
     body, card, chip, column, divider, filled_button, heading, label, outlined_button, row, small,
-    text_button_with_id, title, title_small, toggle,
+    text_button, title, title_small, toggle,
 };
 use super::text_field::{FieldChanged, TextField};
 
@@ -168,8 +168,8 @@ impl McpView {
                         .child(small(theme, server.description.clone())),
                 )
                 .child(toggle(
-                    theme,
                     format!("server-toggle-{}", server.id),
+                    theme,
                     server.enabled,
                     on_toggle,
                 )),
@@ -192,7 +192,7 @@ impl McpView {
                     let open = cx.listener(move |_this, _event: &ClickEvent, _window, cx| {
                         cx.open_url(&url);
                     });
-                    content = content.child(text_button_with_id(
+                    content = content.child(text_button(
                         format!("apply-{}-{}", server.id, key.name),
                         theme,
                         copy::MCP_APPLY_KEY,
@@ -239,7 +239,7 @@ impl McpView {
                         .child(title_small(theme, custom.title.clone()))
                         .child(small(theme, custom.detail.clone())),
                 )
-                .child(text_button_with_id(
+                .child(text_button(
                     format!("remove-{index}"),
                     theme,
                     copy::MCP_REMOVE,
@@ -262,7 +262,13 @@ impl McpView {
                 this.model.set_custom_confirm(policy);
                 cx.notify();
             });
-            chips = chips.child(chip(theme, label_text, selected, on_click));
+            chips = chips.child(chip(
+                format!("mcp-confirm-{}", policy as u8),
+                theme,
+                label_text,
+                selected,
+                on_click,
+            ));
         }
 
         let add = cx.listener(|this, _event: &ClickEvent, _window, cx| {
@@ -315,7 +321,13 @@ impl McpView {
             .child(
                 div()
                     .when(!form.can_add, |element| element.opacity(0.6))
-                    .child(filled_button(theme, form.add_label, form.can_add, add)),
+                    .child(filled_button(
+                        "mcp-add",
+                        theme,
+                        form.add_label,
+                        form.can_add,
+                        add,
+                    )),
             )
     }
 }
@@ -393,6 +405,7 @@ impl Render for McpView {
                                     .child(count),
                             )
                             .child(outlined_button(
+                                "mcp-recommended",
                                 &theme,
                                 copy::MCP_RECOMMENDED,
                                 true,
@@ -407,8 +420,16 @@ impl Render for McpView {
                         row()
                             .gap_3()
                             .py_2()
-                            .child(filled_button(&theme, copy::SETTINGS_SAVE, true, save))
-                            .child(outlined_button(&theme, test_label, !testing, test))
+                            .child(filled_button(
+                                "mcp-save",
+                                &theme,
+                                copy::SETTINGS_SAVE,
+                                true,
+                                save,
+                            ))
+                            .child(outlined_button(
+                                "mcp-test", &theme, test_label, !testing, test,
+                            ))
                             .children(saved.then(|| small(&theme, copy::SETTINGS_SAVED))),
                     ),
             )
