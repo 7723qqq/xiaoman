@@ -2,6 +2,7 @@
 .kotlin/
 build/
 local.properties
+xiaoman-signing.properties
 *.iml
 .idea/
 captures/

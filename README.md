@@ -57,6 +57,12 @@ cargo run -p xiaoman-web --bin web-server -- --local     # 网页版（课堂模
 `gradlew` 是 Android 宿主的构建入口（`crates/xiaoman-gpui/android` 是独立 Gradle 工程）。NDK 路径用
 `-Pxiaoman.ndkDir=...`、`ANDROID_NDK_HOME` 或 `ANDROID_NDK_ROOT` 指定。
 
+`assembleRelease` 用正式密钥签名，凭据不入库：优先读环境变量
+`XIAOMAN_SIGNING_STORE_FILE` / `_STORE_PASSWORD` / `_KEY_ALIAS` / `_KEY_PASSWORD`（或用
+`XIAOMAN_SIGNING_KEYSTORE_BASE64` 直接给 base64 密钥），其次读
+`~/.xiaoman-android/xiaoman-signing.properties` 或 `local.properties`（路径写正斜杠）。
+没有凭据时会构建未签名包并给出警告。
+
 ## 使用
 
 1. 安装 debug APK，打开小满。

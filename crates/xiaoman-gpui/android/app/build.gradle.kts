@@ -1,6 +1,8 @@
 // The GPUI spike's APK: one NativeActivity whose whole UI is Rust.
 import java.io.File
+import java.util.Base64
 import java.util.Locale
+import java.util.Properties
 
 plugins {
     id("com.android.application") version "8.9.2"
@@ -47,6 +49,41 @@ fun linkerEnv(): Map<String, String> {
     )
 }
 
+/**
+ * Release signing credentials. Environment variables win over the local properties files, and
+ * nothing here is committed: `~/.xiaoman-android/xiaoman-signing.properties` and
+ * `local.properties` are both outside version control (or ignored).
+ *
+ * Variables: `XIAOMAN_SIGNING_STORE_FILE` / `_STORE_PASSWORD` / `_KEY_ALIAS` / `_KEY_PASSWORD`,
+ * or `XIAOMAN_SIGNING_KEYSTORE_BASE64` (a base64 keystore, decoded into `build/signing/`).
+ */
+fun releaseSigning(): Map<String, String> {
+    val values = mutableMapOf<String, String>()
+    listOf(
+        File(System.getProperty("user.home"), ".xiaoman-android/xiaoman-signing.properties"),
+        rootProject.projectDir.resolve("local.properties"),
+    ).filter { it.isFile }.forEach { file ->
+        file.inputStream().use { stream ->
+            Properties().apply { load(stream) }.forEach { (key, value) ->
+                val name = key as? String ?: return@forEach
+                if (name.startsWith("xiaoman.signing.")) {
+                    values[name.removePrefix("xiaoman.signing.")] = value as String
+                }
+            }
+        }
+    }
+    System.getenv("XIAOMAN_SIGNING_KEYSTORE_BASE64")?.takeIf { it.isNotBlank() }?.let { encoded ->
+        val target = layout.buildDirectory.file("signing/xiaoman-release.keystore").get().asFile
+        target.parentFile.mkdirs()
+        target.writeBytes(Base64.getDecoder().decode(encoded))
+        values["storeFile"] = target.absolutePath
+    }
+    listOf("storeFile", "storePassword", "keyAlias", "keyPassword").forEach { key ->
+        System.getenv("XIAOMAN_SIGNING_${key.uppercase(Locale.ROOT)}")?.let { values[key] = it }
+    }
+    return values
+}
+
 android {
     namespace = "dev.xiaoman.app"
     compileSdk = 35
@@ -61,8 +98,26 @@ android {
         manifestPlaceholders["nativeLibraryName"] = "xiaoman_gpui"
     }
 
+    signingConfigs {
+        val signing = releaseSigning()
+        val keys = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+        if (keys.all { signing[it]?.isNotBlank() == true }) {
+            create("xiaomanRelease") {
+                storeFile = file(signing.getValue("storeFile"))
+                storePassword = signing.getValue("storePassword")
+                keyAlias = signing.getValue("keyAlias")
+                keyPassword = signing.getValue("keyPassword")
+            }
+        } else {
+            logger.warn("signing: no release credentials, assembleRelease will produce an unsigned APK")
+        }
+    }
+
     buildTypes {
-        release { isMinifyEnabled = false }
+        release {
+            isMinifyEnabled = false
+            signingConfigs.findByName("xiaomanRelease")?.let { signingConfig = it }
+        }
     }
 
     compileOptions {
