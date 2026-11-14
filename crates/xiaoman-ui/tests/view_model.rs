@@ -1339,3 +1339,39 @@ fn each_endpoint_drafts_its_own_fields_for_a_probe() {
     assert!(model.draft(Endpoint::Operator).is_none());
     assert!(model.draft(Endpoint::Chat).is_some());
 }
+
+#[test]
+fn the_memory_delete_flow_asks_first_and_returns_to_the_list() {
+    let mut model = MemoryModel::new();
+    let first = note("第一本", "notes/first", 1);
+    model.set_notes(std::slice::from_ref(&first));
+    model.open_note(&first);
+    assert!(model.open().is_some());
+
+    model.begin_delete("notes/first");
+    assert_eq!(model.confirm_delete(), Some("notes/first"));
+
+    // 取消：笔记还开着，什么都没删。
+    model.cancel_delete();
+    assert_eq!(model.confirm_delete(), None);
+    assert!(model.open().is_some());
+
+    // 确认删除：关掉详情，列表进入加载态，待删状态清空。
+    model.begin_delete("notes/first");
+    model.deleted();
+    assert!(model.open().is_none());
+    assert_eq!(model.confirm_delete(), None);
+    assert!(model.loading());
+
+    // 文件已经不在：显示「已不存在」。
+    model.open_missing();
+    assert_eq!(model.state().not_found(), Some(copy::MEMORY_NOT_FOUND));
+}
+
+#[test]
+fn the_delete_confirmation_names_the_note() {
+    assert_eq!(
+        copy::memory_delete_message("第一本"),
+        "「第一本」会从手机上永久删除。"
+    );
+}

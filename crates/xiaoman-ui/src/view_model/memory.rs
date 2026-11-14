@@ -33,6 +33,10 @@ pub struct MemoryState {
     pub loading: bool,
     pub open: Option<OpenNote>,
     pub open_missing: bool,
+    /// The note whose deletion is waiting for confirmation.
+    pub confirm_delete: Option<String>,
+    /// `已删除。` or why the delete failed, shown above the list.
+    pub message: Option<String>,
 }
 
 impl Default for MemoryState {
@@ -43,6 +47,8 @@ impl Default for MemoryState {
             loading: true,
             open: None,
             open_missing: false,
+            confirm_delete: None,
+            message: None,
         }
     }
 }
@@ -171,11 +177,34 @@ impl MemoryModel {
     pub fn close(&mut self) {
         self.state.open = None;
         self.state.open_missing = false;
+        self.state.confirm_delete = None;
     }
 
     /// Delete: the note closes and the list reloads.
     pub fn deleted(&mut self) {
         self.close();
         self.state.loading = true;
+    }
+
+    /// The note the delete confirmation is about, if the dialog is open.
+    pub fn confirm_delete(&self) -> Option<&str> {
+        self.state.confirm_delete.as_deref()
+    }
+
+    /// The trash button: ask before touching the file.
+    pub fn begin_delete(&mut self, permalink: impl Into<String>) {
+        self.state.confirm_delete = Some(permalink.into());
+    }
+
+    pub fn cancel_delete(&mut self) {
+        self.state.confirm_delete = None;
+    }
+
+    pub fn message(&self) -> Option<&str> {
+        self.state.message.as_deref()
+    }
+
+    pub fn set_message(&mut self, message: Option<String>) {
+        self.state.message = message;
     }
 }
