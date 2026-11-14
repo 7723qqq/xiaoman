@@ -56,12 +56,10 @@ impl OpenAiCompatibleClient {
 
     pub fn with_options(config: ModelConfig, options: ClientOptions) -> Self {
         let url = format!("{}/chat/completions", config.base_url.trim_end_matches('/'));
-        let http = options.http.unwrap_or_else(|| {
-            reqwest::Client::builder()
-                .timeout(Duration::from_secs(config.timeout_seconds.max(1) as u64))
-                .build()
-                .unwrap_or_default()
-        });
+        // No client-level timeout: `send` and `list_models` wrap each exchange in
+        // `ModelConfig::timeout_seconds`, so the timeout is the same whether the client is built
+        // here or shared through `LlmClients` — and it is reported as one message.
+        let http = options.http.unwrap_or_default();
         Self {
             config,
             http,
@@ -86,19 +84,37 @@ impl OpenAiCompatibleClient {
         for (name, value) in &self.config.extra_headers {
             request = request.header(name, value);
         }
-        let response = request.send().await.map_err(|error| LlmError {
-            message: self.redact(&format!("Request to {url} failed: {error}")),
-            status_code: None,
-            retryable: true,
-            provider_code: None,
-        })?;
-        let code = response.status().as_u16();
-        let body = response.text().await.map_err(|error| LlmError {
-            message: self.redact(&format!("Reading {url} failed: {error}")),
-            status_code: Some(code),
-            retryable: true,
-            provider_code: None,
-        })?;
+        let timeout = Duration::from_secs(self.config.timeout_seconds.max(1) as u64);
+        let exchange = async {
+            let response = request.send().await.map_err(|error| LlmError {
+                message: self.redact(&format!("Request to {url} failed: {error}")),
+                status_code: None,
+                retryable: true,
+                provider_code: None,
+            })?;
+            let code = response.status().as_u16();
+            let body = response.text().await.map_err(|error| LlmError {
+                message: self.redact(&format!("Reading {url} failed: {error}")),
+                status_code: Some(code),
+                retryable: true,
+                provider_code: None,
+            })?;
+            Ok::<(u16, String), LlmError>((code, body))
+        };
+        let (code, body) = match tokio::time::timeout(timeout, exchange).await {
+            Ok(result) => result?,
+            Err(_) => {
+                return Err(LlmError {
+                    message: self.redact(&format!(
+                        "Request to {url} timed out after {}s",
+                        timeout.as_secs()
+                    )),
+                    status_code: None,
+                    retryable: true,
+                    provider_code: None,
+                });
+            }
+        };
         if !(200..=299).contains(&code) {
             return Err(LlmError {
                 message: self.redact(&format!(
@@ -280,19 +296,28 @@ impl OpenAiCompatibleClient {
         for (name, value) in &self.config.extra_headers {
             request = request.header(name, value);
         }
-        let response = request.send().await.map_err(|error| error.to_string())?;
-        let code = response.status().as_u16();
-        let retry_after = response
-            .headers()
-            .get("retry-after")
-            .and_then(|value| value.to_str().ok())
-            .map(str::to_string);
-        let text = response.text().await.map_err(|error| error.to_string())?;
-        Ok(HttpResult {
-            code,
-            body: text,
-            retry_after,
-        })
+        let timeout = Duration::from_secs(self.config.timeout_seconds.max(1) as u64);
+        // The timeout belongs to the model config, not to the client: `LlmClients` shares one
+        // pooled client across every request, and a shared client has no timeout of its own.
+        let exchange = async {
+            let response = request.send().await.map_err(|error| error.to_string())?;
+            let code = response.status().as_u16();
+            let retry_after = response
+                .headers()
+                .get("retry-after")
+                .and_then(|value| value.to_str().ok())
+                .map(str::to_string);
+            let text = response.text().await.map_err(|error| error.to_string())?;
+            Ok::<HttpResult, String>(HttpResult {
+                code,
+                body: text,
+                retry_after,
+            })
+        };
+        match tokio::time::timeout(timeout, exchange).await {
+            Ok(result) => result,
+            Err(_) => Err(format!("timed out after {}s", timeout.as_secs())),
+        }
     }
 }
 

@@ -643,3 +643,56 @@ async fn a_model_list_that_is_not_json_is_an_error() {
     assert_eq!(error.status_code, Some(200));
     assert!(!error.retryable);
 }
+
+/// The config's timeout applies even when the client is shared: `LlmClients` keeps one pooled
+/// `reqwest::Client` with no timeout of its own, and that is the client the app chats with.
+#[tokio::test]
+async fn the_shared_client_still_honours_the_config_timeout() {
+    let server = server_with(vec![
+        ResponseTemplate::new(200)
+            .set_body_string(simple_reply())
+            .set_delay(std::time::Duration::from_secs(30)),
+    ])
+    .await;
+    let mut config = config(&server);
+    config.timeout_seconds = 1;
+    let client = xiaoman_llm::LlmClients::with_retries(0).create(config);
+
+    let started = std::time::Instant::now();
+    let error = client
+        .complete(ChatRequest::new(vec![ChatMessage::user("x")]))
+        .await
+        .expect_err("a stalled endpoint times out");
+
+    assert!(error.retryable, "{error:?}");
+    assert!(error.message.contains("timed out"), "{}", error.message);
+    assert!(!error.message.contains(API_KEY));
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(10),
+        "the timeout must fire before the mock's 30s delay"
+    );
+}
+
+/// `list_models` is the Settings screen's probe: one attempt, same timeout.
+#[tokio::test]
+async fn listing_models_times_out_too() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v3/models"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(json!({"data": [{"id": "late"}]}))
+                .set_delay(std::time::Duration::from_secs(30)),
+        )
+        .mount(&server)
+        .await;
+    let mut config = config(&server);
+    config.timeout_seconds = 1;
+    let client = OpenAiCompatibleClient::new(config);
+
+    let error = client.list_models().await.expect_err("timeout");
+
+    assert!(error.retryable, "{error:?}");
+    assert!(error.message.contains("timed out"), "{}", error.message);
+    assert!(!error.message.contains(API_KEY));
+}
