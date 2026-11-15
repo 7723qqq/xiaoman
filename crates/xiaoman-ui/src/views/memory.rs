@@ -18,7 +18,7 @@ use crate::view_model::memory::{MemoryModel, MemoryRow};
 
 use super::components::{column, heading, row, small, text_button};
 use super::text_field::{
-    Input, InputEvent, TextField, field_value, set_field_value, styled_text, text_field,
+    InputEvent, TextField, field_value, input, set_field_value, styled_text, text_field,
 };
 
 /// What one background load produced.
@@ -384,7 +384,7 @@ impl MemoryView {
                     .items_center()
                     .gap_2()
                     .w_full()
-                    .child(div().flex_1().min_w_0().child(Input::new(&self.search)))
+                    .child(div().flex_1().min_w_0().child(input(&self.search)))
                     .child(text_button(
                         "memory-clear",
                         theme,

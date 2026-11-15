@@ -61,6 +61,16 @@ fn build<T: 'static>(
     })
 }
 
+/// The element for a plain field: the library input at the app's control height.
+pub fn input(state: &Entity<InputState>) -> Input {
+    Input::new(state).h(Theme::control_height())
+}
+
+/// The element for a masked field, with the library's eye toggle.
+pub fn masked_input(state: &Entity<InputState>) -> Input {
+    Input::new(state).h(Theme::control_height()).mask_toggle()
+}
+
 /// The field's text, without the surrounding whitespace a form would trim.
 pub fn field_value(field: &Entity<InputState>, cx: &App) -> String {
     field.read(cx).value().to_string()

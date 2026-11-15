@@ -17,7 +17,8 @@ use super::components::{
     text_button, title, title_small, toggle,
 };
 use super::text_field::{
-    Input, InputEvent, TextField, field_value, set_field_value, text_field, text_field_masked,
+    InputEvent, TextField, field_value, input, masked_input, set_field_value, text_field,
+    text_field_masked,
 };
 
 /// The MCP screen.
@@ -210,7 +211,7 @@ impl McpView {
                                 .text_color(theme.on_surface_variant)
                                 .child(key.label.clone()),
                         )
-                        .child(Input::new(input).mask_toggle());
+                        .child(masked_input(input));
                 }
                 if let Some(help) = &key.help {
                     let url = help.clone();
@@ -315,14 +316,14 @@ impl McpView {
                     .text_color(theme.on_surface_variant)
                     .child(form.title_label),
             )
-            .child(Input::new(&self.custom_title))
+            .child(input(&self.custom_title))
             .child(
                 div()
                     .text_size(Theme::label_size())
                     .text_color(theme.on_surface_variant)
                     .child(form.url_label),
             )
-            .child(Input::new(&self.custom_url))
+            .child(input(&self.custom_url))
             .children(form.problem.clone().map(|problem| {
                 div()
                     .text_size(Theme::small_size())

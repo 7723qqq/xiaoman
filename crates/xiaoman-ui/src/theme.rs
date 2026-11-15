@@ -88,6 +88,11 @@ impl Theme {
         px(22.)
     }
 
+    /// Every form control — an input, a button, a chip — is this tall, so a row of them lines up.
+    pub fn control_height() -> Pixels {
+        px(40.)
+    }
+
     /// `bodySmall`: 12sp / 18sp.
     pub fn small_size() -> Pixels {
         px(12.)

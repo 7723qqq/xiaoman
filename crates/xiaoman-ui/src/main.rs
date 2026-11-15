@@ -11,6 +11,8 @@ use std::path::PathBuf;
 
 use gpui::{App, AppContext as _, Bounds, TitlebarOptions, WindowBounds, WindowOptions, px, size};
 
+use gpui_kit::component::{Theme as ComponentTheme, ThemeMode};
+
 use xiaoman_app::session::{Session, SessionConfig};
 use xiaoman_ui::theme;
 use xiaoman_ui::views::shell::RootView;
@@ -40,7 +42,19 @@ fn main() {
                 ..Default::default()
             },
             move |window, cx| {
-                theme::install(cx, theme::is_light(window.appearance()));
+                let light = theme::is_light(window.appearance());
+                theme::install(cx, light);
+                // The inputs and their edit menu come from `gpui-component`: give it the same
+                // light/dark choice as the app, or its fields paint a light palette on a dark page.
+                ComponentTheme::change(
+                    if light {
+                        ThemeMode::Light
+                    } else {
+                        ThemeMode::Dark
+                    },
+                    Some(window),
+                    cx,
+                );
                 let view = cx.new(|cx| RootView::new(window, cx, session));
                 // The component library renders its overlays (the text edit menu, dialogs)
                 // inside `Root`; without it they have nowhere to paint.

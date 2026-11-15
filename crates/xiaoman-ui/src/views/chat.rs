@@ -18,7 +18,7 @@ use super::components::{
     title_small,
 };
 use super::text_field::{
-    Input, InputEvent, TextField, field_value, set_field_value, styled_text, text_field,
+    InputEvent, TextField, field_value, input, set_field_value, styled_text, text_field,
 };
 
 /// What the chat screen asks the shell to do.
@@ -473,7 +473,7 @@ impl ChatView {
             .py_2()
             .gap_2()
             .items_end()
-            .child(div().flex_1().min_w_0().child(Input::new(&self.draft)))
+            .child(div().flex_1().min_w_0().child(input(&self.draft)))
             .child(
                 div()
                     .id("chat-send")
@@ -481,8 +481,8 @@ impl ChatView {
                     .items_center()
                     .justify_center()
                     .flex_shrink_0()
-                    .w(px(48.))
-                    .h(px(48.))
+                    .w(Theme::control_height())
+                    .h(Theme::control_height())
                     .rounded_full()
                     .bg(if enabled {
                         theme.primary

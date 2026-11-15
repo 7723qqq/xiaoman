@@ -17,7 +17,8 @@ use super::components::{
     text_button, title, toggle,
 };
 use super::text_field::{
-    Input, InputEvent, TextField, field_value, set_field_value, text_field, text_field_masked,
+    InputEvent, TextField, field_value, input, masked_input, set_field_value, text_field,
+    text_field_masked,
 };
 
 /// Which probe the two buttons under an endpoint run.
@@ -157,7 +158,7 @@ impl SettingsView {
                     .text_color(theme.on_surface_variant)
                     .child(rows.api_key.label.clone()),
             )
-            .child(Input::new(self.binding(endpoint, Field::ApiKey)).mask_toggle())
+            .child(masked_input(self.binding(endpoint, Field::ApiKey)))
     }
 
     fn model_section(
@@ -173,7 +174,7 @@ impl SettingsView {
             .child(field_block(
                 theme,
                 rows.base_url.label.clone(),
-                self.binding(endpoint, Field::BaseUrl).clone(),
+                input(self.binding(endpoint, Field::BaseUrl)),
             ))
             .child(self.model_row(theme, rows, endpoint, cx))
             .child(self.api_key_block(theme, rows, endpoint))
@@ -182,7 +183,7 @@ impl SettingsView {
                     .gap_1()
                     .py_1()
                     .child(Self::field_label(theme, rows.temperature.label.clone()))
-                    .child(self.binding(endpoint, Field::Temperature).clone())
+                    .child(input(self.binding(endpoint, Field::Temperature)))
                     .children(
                         rows.temperature
                             .help
@@ -206,7 +207,7 @@ impl SettingsView {
             div()
                 .flex_1()
                 .min_w_0()
-                .child(self.binding(endpoint, Field::Model).clone()),
+                .child(input(self.binding(endpoint, Field::Model))),
         );
 
         if !rows.models.is_empty() {
@@ -225,8 +226,8 @@ impl SettingsView {
                     .flex()
                     .items_center()
                     .justify_center()
-                    .w(px(32.))
-                    .h(px(32.))
+                    .w(Theme::control_height())
+                    .h(Theme::control_height())
                     .rounded_md()
                     .border_1()
                     .border_color(theme.outline_variant)
@@ -476,7 +477,7 @@ impl Render for SettingsView {
                         column()
                             .gap_1()
                             .child(Self::field_label(&theme, rows.max_steps.label.clone()))
-                            .child(self.max_steps.clone())
+                            .child(input(&self.max_steps))
                             .children(
                                 rows.max_steps
                                     .help
