@@ -357,9 +357,6 @@ impl SettingsView {
 
     /// Runs one probe on a background thread against the draft being edited.
     fn probe(&mut self, endpoint: Endpoint, kind: ProbeKind, cx: &mut Context<Self>) {
-        if self.model.probing(endpoint) {
-            return;
-        }
         let Some(settings) = self.model.draft(endpoint) else {
             self.model.apply_probe(
                 endpoint,
@@ -373,7 +370,13 @@ impl SettingsView {
             return;
         };
         let session = self.session.clone();
-        self.model.set_probing(endpoint, true);
+        self.model.begin_probe(
+            endpoint,
+            match kind {
+                ProbeKind::Models => copy::SETTINGS_FETCHING,
+                ProbeKind::Test => copy::SETTINGS_TESTING,
+            },
+        );
         cx.spawn(async move |this, cx| {
             let outcome = cx
                 .background_executor()

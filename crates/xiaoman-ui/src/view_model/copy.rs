@@ -94,6 +94,9 @@ pub const SETTINGS_TEMPERATURE: &str = "Temperature（可选）";
 /// The endpoint probe buttons.
 pub const SETTINGS_FETCH_MODELS: &str = "获取模型";
 pub const SETTINGS_TEST: &str = "测试";
+/// Shown from the click until the probe returns, so a slow endpoint is not "nothing happened".
+pub const SETTINGS_FETCHING: &str = "正在获取模型…";
+pub const SETTINGS_TESTING: &str = "正在连接…";
 pub const SETTINGS_AGENT: &str = "任务";
 pub const SETTINGS_MAX_STEPS: &str = "最多步数";
 pub const SETTINGS_LEARN: &str = "成功后记住操作路径";

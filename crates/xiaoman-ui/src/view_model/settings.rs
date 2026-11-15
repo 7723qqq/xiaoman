@@ -238,6 +238,19 @@ impl SettingsModel {
         }
     }
 
+    /// Marks the endpoint busy and shows `message` until the probe returns.
+    pub fn begin_probe(&mut self, endpoint: Endpoint, message: impl Into<String>) {
+        self.set_probing(endpoint, true);
+        let row = Some(ProbeRow {
+            message: message.into(),
+            ok: true,
+        });
+        match endpoint {
+            Endpoint::Chat => self.probe_chat = row,
+            Endpoint::Operator => self.probe_operator = row,
+        }
+    }
+
     /// One probe's result: the message always, the model list only when the outcome carries one.
     ///
     /// A successful fetch also opens the dropdown beside the model field, so the next thing the

@@ -218,6 +218,19 @@ impl SettingsView {
             return;
         };
         let settings = self.draft(endpoint, cx);
+        // Show something from the click on: a slow endpoint must not look like "nothing happened".
+        self.set_probe(
+            endpoint,
+            ProbeOutcome {
+                models: None,
+                message: match kind {
+                    ProbeKind::Models => "正在获取模型…".to_string(),
+                    ProbeKind::Test => "正在连接…".to_string(),
+                },
+                ok: true,
+            },
+        );
+        cx.notify();
         cx.spawn(async move |this, cx| {
             let outcome = cx
                 .background_executor()
